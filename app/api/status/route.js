@@ -4,13 +4,12 @@ import { getSql, ensureSchema } from '../../../lib/db';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Endpoint ini SENGAJA tidak pernah memanggil Anthropic API — memverifikasi
-// API key beneran valid butuh request sungguhan ke Claude yang memakan biaya
-// token, jadi itu dibuat manual lewat tombol "Tes sekarang" di UI (lihat
-// StatusBar.js), bukan otomatis di sini. Untuk database, ping Postgres tidak
-// dikenai biaya tambahan di Neon, jadi aman dicek otomatis setiap kali.
+// Endpoint ini SENGAJA tidak pernah memanggil Anthropic atau Gemini API —
+// hanya cek konfigurasi dan koneksi database. Untuk menampilkan status
+// masing‑masing provider, cukup cek env var yang ada.
 export async function GET() {
   const anthropicConfigured = Boolean(process.env.ANTHROPIC_API_KEY);
+  const geminiConfigured = Boolean(process.env.GEMINI_API_KEY);
 
   const database = {
     configured: Boolean(process.env.DATABASE_URL),
@@ -32,5 +31,6 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json({ anthropicConfigured, database });
+  return NextResponse.json({ anthropicConfigured, geminiConfigured, database });
 }
+

@@ -85,28 +85,38 @@ export default function StatusBar() {
     dbText = `Database: terhubung · ${formatBytes(status.database.sizeBytes)} terpakai`;
   }
 
-  let apiCls, apiText;
+  let anthropicCls, anthropicText;
   if (!status.anthropicConfigured) {
-    apiCls = 'status-chip-error';
-    apiText = 'Anthropic API: belum diset';
+    anthropicCls = 'status-chip-error';
+    anthropicText = 'Anthropic API: belum diset';
   } else if (apiTest.state === 'ok') {
-    apiCls = 'status-chip-ok';
-    apiText = 'Anthropic API: terverifikasi ✓';
+    anthropicCls = 'status-chip-ok';
+    anthropicText = 'Anthropic API: terverifikasi ✓';
   } else if (apiTest.state === 'error') {
-    apiCls = 'status-chip-error';
-    apiText = `Anthropic API: gagal — ${apiTest.message}`;
+    anthropicCls = 'status-chip-error';
+    anthropicText = `Anthropic API: gagal — ${apiTest.message}`;
   } else if (apiTest.state === 'testing') {
-    apiCls = 'status-chip-neutral';
-    apiText = 'Anthropic API: menguji…';
+    anthropicCls = 'status-chip-neutral';
+    anthropicText = 'Anthropic API: menguji…';
   } else {
-    apiCls = 'status-chip-neutral';
-    apiText = 'Anthropic API: sudah diset (belum dites)';
+    anthropicCls = 'status-chip-neutral';
+    anthropicText = 'Anthropic API: sudah diset (belum dites)';
+  }
+
+  let geminiCls, geminiText;
+  if (!status.geminiConfigured) {
+    geminiCls = 'status-chip-error';
+    geminiText = 'Gemini API: belum diset';
+  } else {
+    geminiCls = 'status-chip-ok';
+    geminiText = 'Gemini API: sudah diset ✓';
   }
 
   return (
     <div className="status-bar">
       <span className={`status-chip ${dbCls}`}>{dbText}</span>
-      <span className={`status-chip ${apiCls}`}>{apiText}</span>
+      <span className={`status-chip ${anthropicCls}`}>{anthropicText}</span>
+      <span className={`status-chip ${geminiCls}`}>{geminiText}</span>
       {status.anthropicConfigured && apiTest.state !== 'ok' && (
         <button className="status-test-btn" onClick={testAnthropic} disabled={apiTestBusy}>
           {apiTestBusy ? 'Menguji…' : 'Tes sekarang'}

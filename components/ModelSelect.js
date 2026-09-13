@@ -2,8 +2,15 @@
 
 import { MODELS } from '../lib/models';
 
+const PROVIDER_LABEL = { anthropic: 'Claude', google: 'Gemini' };
+
 export default function ModelSelect({ value, onChange }) {
   const active = MODELS.find((m) => m.id === value) || MODELS[1];
+
+  function formatPrice(m) {
+    if (m.price.input === 0 && m.price.output === 0) return 'Gratis';
+    return `$${m.price.input} / MTok input, $${m.price.output} / MTok output`;
+  }
 
   return (
     <div className="field model-select">
@@ -11,7 +18,7 @@ export default function ModelSelect({ value, onChange }) {
       <select value={value} onChange={(e) => onChange(e.target.value)}>
         {MODELS.map((m) => (
           <option key={m.id} value={m.id}>
-            {m.label} — {m.badge} (${m.price.input}/${m.price.output} per MTok)
+            [{PROVIDER_LABEL[m.provider] || m.provider}] {m.label} — {m.badge} ({formatPrice(m)})
           </option>
         ))}
       </select>
@@ -30,8 +37,7 @@ export default function ModelSelect({ value, onChange }) {
         ))}
       </div>
       <div className="model-cost-hint">
-        {active.description} Estimasi biaya API: ${active.price.input} / MTok input, ${active.price.output} / MTok
-        output.
+        {active.description} Estimasi biaya API: {formatPrice(active)}.
       </div>
     </div>
   );
