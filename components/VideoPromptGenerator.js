@@ -1,17 +1,20 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import ModelSelect from './ModelSelect';
 import HistoryPanel from './HistoryPanel';
 import { DEFAULT_MODEL_ID } from '../lib/models';
 import { callClaude, extractText, extractJsonBlock } from '../lib/claudeClient';
-import { saveItem, listItems } from '../lib/savedItems';
+import { saveItem, listItems, getCounts } from '../lib/savedItems';
 import { readAsDataURL, resizeImageToBase64 } from '../lib/imageUtils';
 
 // Riwayat video disimpan dengan "kind" berbeda dari Prompt Generator gambar
 // (kind: "prompt"), supaya daftar anti-duplikat tidak saling campur — konsep
 // video dicek hanya terhadap video lama, bukan terhadap konsep gambar.
 const HISTORY_KIND = 'video-prompt';
+// Catatan riset video juga dipisah dari riset Prompt Generator gambar (kind
+// "riset"), supaya total-nya tidak tercampur.
+const RISET_KIND = 'riset-video';
 const MAX_AVOID_TITLES = 40;
 
 const NICHE_OPTIONS = [
@@ -230,6 +233,20 @@ export default function VideoPromptGenerator() {
 
   const currentNiche = useMemo(() => (useCustomNiche ? nicheCustom.trim() : niche), [useCustomNiche, nicheCustom, niche]);
 
+  // Muat total video & riset yang PERNAH dibuat dari database, sekali saat
+  // tab ini pertama kali tampil, supaya angkanya tidak balik ke 0 tiap refresh.
+  useEffect(() => {
+    let cancelled = false;
+    getCounts().then((counts) => {
+      if (cancelled) return;
+      setVideoTotal(counts[HISTORY_KIND] || 0);
+      setRisetTotal(counts[RISET_KIND] || 0);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   function handleNicheSelect(value) {
     if (value === '__custom__') {
       setUseCustomNiche(true);
@@ -308,6 +325,7 @@ export default function VideoPromptGenerator() {
           if (researchNote) {
             setResearch(researchNote);
             setRisetTotal((t) => t + 1);
+            saveItem({ kind: RISET_KIND, title: nicheVal, model, data: { niche: nicheVal, style, research: researchNote } }).catch(() => {});
           }
         }
         setStatus(
@@ -412,14 +430,14 @@ export default function VideoPromptGenerator() {
             Adobe Stock.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 28 }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--cyan)' }}>{videoTotal}</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>prompt</div>
+        <div className="header-stats">
+          <div className="stat-box">
+            <div className="stat-value">{videoTotal}</div>
+            <div className="stat-label">prompt</div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--cyan)' }}>{risetTotal}</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>riset</div>
+          <div className="stat-box">
+            <div className="stat-value">{risetTotal}</div>
+            <div className="stat-label">riset</div>
           </div>
         </div>
       </div>

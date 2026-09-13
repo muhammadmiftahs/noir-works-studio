@@ -562,14 +562,14 @@ export default function MetadataGenerator() {
             unggah ke Adobe Stock Contributor.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 28 }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--cyan)' }}>{frames.length}</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>frame</div>
+        <div className="header-stats">
+          <div className="stat-box">
+            <div className="stat-value">{frames.length}</div>
+            <div className="stat-label">frame</div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--cyan)' }}>{frames.filter((f) => f.status === 'done').length}</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>selesai</div>
+          <div className="stat-box">
+            <div className="stat-value">{frames.filter((f) => f.status === 'done').length}</div>
+            <div className="stat-label">selesai</div>
           </div>
         </div>
       </div>

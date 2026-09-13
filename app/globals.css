@@ -49,6 +49,11 @@ a { color: var(--cyan); }
 .title-rule { width: 46px; height: 4px; background: var(--red); margin: 12px 0 14px; }
 .desc { color: var(--muted); font-size: 13px; line-height: 1.7; max-width: 480px; margin: 0; }
 
+.header-stats { display: flex; gap: 28px; flex-shrink: 0; }
+.stat-box { text-align: right; }
+.stat-value { font-size: 20px; font-weight: 600; color: var(--cyan); }
+.stat-label { font-size: 11px; color: var(--muted); }
+
 /* Status bar */
 .status-bar {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -70,7 +75,12 @@ a { color: var(--cyan); }
 .status-refresh-btn { padding: 6px 10px; }
 
 /* Tabs */
-.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+.tabs-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 24px;
+}
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 0; }
+.logout-btn { flex-shrink: 0; }
 .tab-btn {
   background: var(--panel); border: 1px solid var(--line); color: var(--muted);
   padding: 10px 18px; border-radius: var(--radius); font-family: 'IBM Plex Mono', monospace;
@@ -350,6 +360,55 @@ input::placeholder, textarea::placeholder { color: #5c5c60; }
 .history-title { font-size: 13px; color: var(--white); }
 
 @media (max-width: 640px) {
-  .title { font-size: 26px; }
-  .wrap { padding: 26px 16px 70px; }
+  body { font-size: 13px; }
+  .wrap { padding: 20px 14px 60px; }
+  .wrap.login-wrap { padding-top: 48px; }
+
+  .app-header { padding-bottom: 18px; margin-bottom: 16px; gap: 14px; }
+  .title { font-size: 24px; }
+  .desc { max-width: none; font-size: 12.5px; }
+  .header-stats { gap: 20px; }
+  .stat-value { font-size: 17px; }
+
+  /* Status chips: keep them from cramping together, let the row wrap freely */
+  .status-bar { gap: 8px; padding: 6px 0; }
+  .status-chip { padding: 6px 10px; font-size: 10.5px; }
+
+  /* Tabs: stack vertically and let the logout button sit under them instead
+     of squeezing everything onto one unreadable row */
+  .tabs-row { flex-direction: column; align-items: stretch; gap: 10px; }
+  .tabs { width: 100%; }
+  .tab-btn { flex: 1 1 auto; text-align: center; padding: 10px 12px; font-size: 11.5px; }
+  .logout-btn { width: 100%; }
+
+  .panel { padding: 16px; margin-bottom: 14px; }
+  .field { margin-bottom: 15px; }
+
+  /* Full-width, stacked action buttons are much easier to tap than a tight row */
+  .btn-row { flex-direction: column; }
+  .btn-row .btn-primary, .btn-row .btn-ghost { width: 100%; }
+  .count-row { gap: 10px; }
+
+  .chip { padding: 7px 11px; font-size: 11px; }
+  .model-badges { gap: 6px; }
+
+  /* Photo grid: one card per row instead of a cramped auto-fill grid */
+  .grid { grid-template-columns: 1fr; gap: 14px; }
+  .photo-actions { flex-direction: column; }
+
+  .prompt-copy-box { padding: 12px 14px; }
+  .prompt-copy-text { font-size: 12px; }
+  .frame-actions { gap: 12px 16px; }
+
+  .replace-bar { flex-direction: column; align-items: stretch; }
+  .replace-bar input { width: 100%; }
+
+  /* Wide data tables need horizontal scroll on narrow screens instead of
+     squishing every column unreadably small */
+  .modal-panel { max-height: 88vh; }
+  .modal-body { padding: 0 12px; -webkit-overflow-scrolling: touch; }
+  .preview-table { min-width: 640px; }
+  .modal-head, .modal-foot { padding: 12px 14px; flex-wrap: wrap; }
+
+  .history-item { flex-direction: column; gap: 4px; }
 }

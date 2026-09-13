@@ -20,8 +20,8 @@ export default function Home() {
   return (
     <div className="wrap">
       <StatusBar />
-      <div className="tabs" style={{ justifyContent: 'space-between' }}>
-        <div className="tabs" style={{ marginBottom: 0 }}>
+      <div className="tabs-row">
+        <div className="tabs tabs-scroll">
           <button className={'tab-btn' + (tab === 'prompt' ? ' active' : '')} onClick={() => setTab('prompt')}>
             Prompt Generator
           </button>
@@ -32,7 +32,7 @@ export default function Home() {
             Metadata Generator
           </button>
         </div>
-        <button className="btn-ghost" onClick={handleLogout} title="Keluar dari aplikasi ini">
+        <button className="btn-ghost logout-btn" onClick={handleLogout} title="Keluar dari aplikasi ini">
           Keluar
         </button>
       </div>
