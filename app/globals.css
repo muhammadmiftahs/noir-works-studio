@@ -49,6 +49,26 @@ a { color: var(--cyan); }
 .title-rule { width: 46px; height: 4px; background: var(--red); margin: 12px 0 14px; }
 .desc { color: var(--muted); font-size: 13px; line-height: 1.7; max-width: 480px; margin: 0; }
 
+/* Status bar */
+.status-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 18px; padding: 10px 2px;
+}
+.status-chip {
+  font-size: 11px; letter-spacing: 0.02em; padding: 6px 12px; border-radius: 20px;
+  border: 1px solid var(--line); white-space: nowrap;
+}
+.status-chip-ok { color: #7fcf9e; border-color: #7fcf9e; background: rgba(127,207,158,0.08); }
+.status-chip-error { color: var(--red); border-color: var(--red); background: rgba(227,56,79,0.08); }
+.status-chip-neutral { color: var(--muted); }
+.status-test-btn, .status-refresh-btn {
+  background: none; border: 1px solid var(--line); color: var(--muted); cursor: pointer;
+  padding: 6px 12px; border-radius: 20px; font-size: 11px; font-family: 'IBM Plex Mono', monospace;
+}
+.status-test-btn:hover, .status-refresh-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+.status-test-btn:disabled { opacity: 0.6; cursor: wait; }
+.status-refresh-btn { padding: 6px 10px; }
+
 /* Tabs */
 .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
 .tab-btn {
@@ -189,21 +209,26 @@ input::placeholder, textarea::placeholder { color: #5c5c60; }
 .meta-label { color: var(--cyan); font-weight: 600; margin-right: 4px; }
 .meta-value-muted { color: var(--muted); }
 
-.prompt-label {
-  font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--cyan);
+.prompt-label-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
   margin-top: 16px; margin-bottom: 8px;
 }
+.prompt-label {
+  font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--cyan);
+  margin: 0;
+}
 .prompt-copy-box {
-  position: relative; background: var(--panel-raised); border: 1px solid var(--line);
-  border-radius: 12px; padding: 14px 46px 14px 18px; overflow-x: auto; white-space: nowrap;
+  background: var(--panel-raised); border: 1px solid var(--line);
+  border-radius: 12px; padding: 14px 18px; white-space: pre-wrap; word-break: break-word;
 }
-.prompt-copy-text { color: #8fd0e8; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; }
-.copy-icon-btn {
-  position: absolute; top: 10px; right: 10px; background: none; border: none; color: var(--muted);
-  cursor: pointer; padding: 4px 8px; font-size: 11px; font-family: 'IBM Plex Mono', monospace;
+.prompt-copy-text { color: #8fd0e8; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; line-height: 1.7; }
+.copy-btn-inline {
+  flex-shrink: 0; background: var(--cyan); color: #0a0a0b; border: none; cursor: pointer;
+  padding: 7px 16px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+  border-radius: 20px; font-family: 'IBM Plex Mono', monospace;
 }
-.copy-icon-btn:hover { color: var(--cyan); }
-.copy-icon-btn.copied { color: #7fcf9e; }
+.copy-btn-inline:hover { background: #6fe4d8; }
+.copy-btn-inline.copied { background: #7fcf9e; }
 
 .frame-actions { display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
 .frame-actions button {
@@ -280,6 +305,18 @@ input::placeholder, textarea::placeholder { color: #5c5c60; }
 .dropzone h3 { font-family: 'Archivo Black', sans-serif; font-size: 16px; margin: 0 0 6px; }
 .dropzone p { margin: 0; color: var(--muted); font-size: 12.5px; }
 .dropzone input { display: none; }
+
+.dropzone-mini {
+  border: 1.5px dashed var(--line); border-radius: var(--radius); padding: 22px; text-align: center;
+  cursor: pointer; background: var(--panel-raised);
+}
+.dropzone-mini:hover { border-color: var(--cyan); }
+.dropzone-mini p { margin: 0; color: var(--muted); font-size: 12.5px; }
+.source-image-preview {
+  display: flex; gap: 12px; align-items: center; background: var(--panel-raised);
+  border: 1px solid var(--line); border-radius: var(--radius); padding: 10px;
+}
+.source-image-preview img { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
 
 .replace-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 18px; }
 .replace-bar .replace-label { font-size: 11px; color: var(--muted); letter-spacing: 0.03em; white-space: nowrap; }

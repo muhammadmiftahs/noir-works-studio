@@ -6,6 +6,7 @@ import HistoryPanel from './HistoryPanel';
 import { DEFAULT_MODEL_ID } from '../lib/models';
 import { callClaude, extractText, withRateLimitRetry } from '../lib/claudeClient';
 import { saveItem } from '../lib/savedItems';
+import { readAsDataURL, resizeImageToBase64 } from '../lib/imageUtils';
 
 const CATEGORIES = [
   [1, 'Animals'], [2, 'Buildings and Architecture'], [3, 'Business'], [4, 'Drinks'],
@@ -71,38 +72,6 @@ function extractJsonObject(text) {
     clean = clean.slice(firstBrace, lastBrace + 1);
   }
   return JSON.parse(clean);
-}
-
-function readAsDataURL(file) {
-  return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(r.result);
-    r.onerror = rej;
-    r.readAsDataURL(file);
-  });
-}
-
-function resizeForApi(dataUrl, maxDim) {
-  return new Promise((res, rej) => {
-    const img = new Image();
-    img.onload = () => {
-      let { width, height } = img;
-      if (width > maxDim || height > maxDim) {
-        const scale = maxDim / Math.max(width, height);
-        width = Math.round(width * scale);
-        height = Math.round(height * scale);
-      }
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, width, height);
-      const out = canvas.toDataURL('image/jpeg', 0.85);
-      res({ base64: out.split(',')[1], mediaType: 'image/jpeg' });
-    };
-    img.onerror = () => rej(new Error('Gagal memuat gambar (file mungkin rusak atau formatnya tidak didukung).'));
-    img.src = dataUrl;
-  });
 }
 
 function computeAHash(dataUrl) {
@@ -267,7 +236,7 @@ export default function MetadataGenerator() {
       try {
         const id = 'f' + ++idCounter;
         const dataUrl = await readAsDataURL(file);
-        const resized = await resizeForApi(dataUrl, 1400);
+        const resized = await resizeImageToBase64(dataUrl, 1400);
         const hash = await computeAHash(dataUrl);
         newFrames.push({
           id,

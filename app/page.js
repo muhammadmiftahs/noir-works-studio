@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PromptGenerator from '../components/PromptGenerator';
+import VideoPromptGenerator from '../components/VideoPromptGenerator';
 import MetadataGenerator from '../components/MetadataGenerator';
+import StatusBar from '../components/StatusBar';
 
 export default function Home() {
   const [tab, setTab] = useState('prompt');
@@ -17,10 +19,14 @@ export default function Home() {
 
   return (
     <div className="wrap">
+      <StatusBar />
       <div className="tabs" style={{ justifyContent: 'space-between' }}>
         <div className="tabs" style={{ marginBottom: 0 }}>
           <button className={'tab-btn' + (tab === 'prompt' ? ' active' : '')} onClick={() => setTab('prompt')}>
             Prompt Generator
+          </button>
+          <button className={'tab-btn' + (tab === 'video' ? ' active' : '')} onClick={() => setTab('video')}>
+            Video Prompt Generator
           </button>
           <button className={'tab-btn' + (tab === 'metadata' ? ' active' : '')} onClick={() => setTab('metadata')}>
             Metadata Generator
@@ -31,7 +37,9 @@ export default function Home() {
         </button>
       </div>
 
-      {tab === 'prompt' ? <PromptGenerator /> : <MetadataGenerator />}
+      {tab === 'prompt' && <PromptGenerator />}
+      {tab === 'video' && <VideoPromptGenerator />}
+      {tab === 'metadata' && <MetadataGenerator />}
     </div>
   );
 }

@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import ModelSelect from './ModelSelect';
 import HistoryPanel from './HistoryPanel';
 import { DEFAULT_MODEL_ID } from '../lib/models';
 import { callClaude, extractText, extractJsonBlock } from '../lib/claudeClient';
 import { saveItem, listItems } from '../lib/savedItems';
+import { readAsDataURL, resizeImageToBase64 } from '../lib/imageUtils';
 
 const NICHE_OPTIONS = [
   { value: 'wedding & undangan pernikahan', label: 'Wedding & undangan pernikahan' },
@@ -126,8 +127,59 @@ async function doGenerate(model, niche, style, mood, count, bgChoice, researchNo
   return ideas;
 }
 
+async function doGenerateFromImage(model, image, niche, style, mood, count, bgChoice, avoidList) {
+  const systemPrompt =
+    'Kamu adalah konsultan konten microstock Adobe Stock sekaligus penyusun prompt image generation untuk Google Flow. Kamu akan diberi SATU gambar referensi. ' +
+    'ATURAN PALING PENTING: jangan mendeskripsikan ulang gambar itu apa adanya secara persis — itu akan menghasilkan gambar yang nyaris identik dan berisiko kena tolak similarity check di Adobe Stock. Tugasmu adalah membuat konsep BARU yang terinspirasi dari gaya visual, mood, palet warna, dan/atau komposisi gambar itu, TAPI dengan perubahan nyata dan disengaja pada beberapa elemen kunci untuk tiap konsep — misalnya: pose/sudut pandang subjek, arah pencahayaan, detail latar belakang, kombinasi warna, aksesori/objek pendukung, ekspresi, waktu, atau elemen komposisi lain. Tujuannya supaya hasil akhirnya tetap terasa "senada"/terinspirasi tapi CUKUP BERBEDA secara visual dari gambar sumber. ' +
+    'Untuk tiap konsep, berikan analisis singkat gaya riset pasar (judul konsep, estimasi potensi jual, tingkat kompetisi, kegunaan komersial) DAN prompt gambar yang sangat detail dan lengkap. ' +
+    'Ketentuan prompt gambar (field "prompt"): tulis dalam Bahasa Inggris, 4-7 kalimat, jelaskan secara konkret: subjek utama beserta detail bentuk/tekstur/material/pose, komposisi & sudut pandang, gaya visual sesuai yang diminta, pencahayaan spesifik, palet warna, latar belakang (ikuti instruksi latar yang diberikan), serta penutup berupa deskriptor kualitas komersial. Jangan sertakan merek, logo, karakter berhak cipta, wajah tokoh publik, atau teks yang harus terbaca jelas di gambar. ' +
+    'Ketentuan "negative_prompt": daftar singkat elemen yang harus dihindari dalam Bahasa Inggris (dipisah koma). ' +
+    'Field lain: "title" (judul singkat konsep), "potential" (angka 1-5 kelipatan 0.5), "competition" (frasa singkat Bahasa Indonesia), "usage" (kegunaan singkat dipisah koma), "orientation" (salah satu dari: "square 1:1", "portrait 3:4", "landscape 4:3", "widescreen 16:9"), "background" (deskripsi latar yang benar-benar dipakai), dan "diff_note" (SATU kalimat singkat Bahasa Indonesia yang menyebutkan secara konkret elemen apa yang sengaja dibuat berbeda dari gambar sumber untuk konsep ini, misalnya "Sudut pandang diubah jadi dari atas, warna pakaian diganti biru tua, ditambahkan elemen tanaman di latar belakang"). ' +
+    'Balas HANYA dengan JSON array of objects berisi keys: title, potential, competition, usage, orientation, background, prompt, negative_prompt, diff_note. Tanpa teks lain, tanpa markdown fence.';
+
+  let bgInstruction;
+  if (bgChoice === 'putih polos') {
+    bgInstruction = 'Semua konsep WAJIB pakai latar belakang putih polos bersih (isolated on plain white background).';
+  } else if (bgChoice === 'ada background/scene') {
+    bgInstruction = 'Semua konsep WAJIB punya latar belakang berupa scene/lingkungan yang relevan dan detail (bukan putih polos).';
+  } else {
+    bgInstruction = 'Campur bebas antara latar putih polos dan latar scene/lingkungan, pilih yang paling masuk akal untuk tiap konsep.';
+  }
+
+  let userText = `Kategori/niche: "${niche}". Gaya visual yang diinginkan: ${style}. ${bgInstruction} Buatkan ${count} konsep baru yang terinspirasi dari gambar terlampir, dengan perbedaan nyata di beberapa elemen kunci seperti dijelaskan di instruksi sistem — jangan sampai ada dua konsep yang perbedaannya cuma di satu elemen kecil yang sama.`;
+  if (mood) userText += ` Mood/pencahayaan: ${mood}.`;
+  if (avoidList && avoidList.length) {
+    userText += `\n\nPENTING — daftar judul konsep yang SUDAH PERNAH dibuat sebelumnya untuk kategori/niche yang sama (tersimpan di riwayat database aplikasi ini):\n${avoidList
+      .map((t) => `- ${t}`)
+      .join('\n')}\nWAJIB buat konsep baru yang juga berbeda dari daftar ini.`;
+  }
+
+  const data = await callClaude({
+    model,
+    system: systemPrompt,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.base64 } },
+          { type: 'text', text: userText },
+        ],
+      },
+    ],
+    maxTokens: 3000,
+  });
+  const raw = extractText(data);
+  const ideas = extractJsonBlock(raw);
+  if (!Array.isArray(ideas) || ideas.length === 0) throw new Error('Hasil kosong, coba generate ulang.');
+  return ideas;
+}
+
 export default function PromptGenerator() {
   const [model, setModel] = useState(DEFAULT_MODEL_ID);
+  const [genMode, setGenMode] = useState('text'); // 'text' | 'image'
+  const [sourceImage, setSourceImage] = useState(null); // { thumb, base64, mediaType, filename }
+  const [imageBusy, setImageBusy] = useState(false);
+  const imageInputRef = useRef(null);
   const [niche, setNiche] = useState('');
   const [useCustomNiche, setUseCustomNiche] = useState(false);
   const [nicheCustom, setNicheCustom] = useState('');
@@ -172,6 +224,21 @@ export default function PromptGenerator() {
     return { niche: nicheOpt.value, style: styleOpt, bg: bgOpt.value, mood: '' };
   }
 
+  async function handleImageUpload(file) {
+    if (!file) return;
+    setError('');
+    setImageBusy(true);
+    try {
+      const dataUrl = await readAsDataURL(file);
+      const resized = await resizeImageToBase64(dataUrl, 1400);
+      setSourceImage({ thumb: dataUrl, base64: resized.base64, mediaType: resized.mediaType, filename: file.name });
+    } catch (err) {
+      setError(`Gagal memuat gambar: ${err.message}`);
+    } finally {
+      setImageBusy(false);
+    }
+  }
+
   async function saveFrame(frame) {
     try {
       await saveItem({ kind: 'prompt', title: frame.title, model: frame.model, data: frame });
@@ -187,6 +254,10 @@ export default function PromptGenerator() {
     const styleVal = overrides.style !== undefined ? overrides.style : style;
     const bgVal = overrides.bg !== undefined ? overrides.bg : bg;
     const moodVal = overrides.mood !== undefined ? overrides.mood : mood;
+    if (genMode === 'image' && !sourceImage) {
+      setError('Upload gambar referensi dulu.');
+      return;
+    }
     if (!nicheVal) {
       setError('Pilih atau isi dulu kategori/niche-nya.');
       return;
@@ -211,20 +282,30 @@ export default function PromptGenerator() {
       }
 
       let researchNote = '';
-      if (!modeHemat) {
-        setStatus('Meneliti tren & celah pasar Adobe Stock…');
-        researchNote = await doResearch(model, nicheVal, styleVal, bgVal);
-        if (researchNote) {
-          setResearch(researchNote);
-          setRisetTotal((t) => t + 1);
+      let ideas;
+      if (genMode === 'image') {
+        setStatus(
+          avoidList.length
+            ? `Menganalisis gambar & menyusun ${count} konsep baru (menghindari ${avoidList.length} konsep lama)…`
+            : `Menganalisis gambar & menyusun ${count} konsep baru…`
+        );
+        ideas = await doGenerateFromImage(model, sourceImage, nicheVal, styleVal, moodVal, count, bgVal, avoidList);
+      } else {
+        if (!modeHemat) {
+          setStatus('Meneliti tren & celah pasar Adobe Stock…');
+          researchNote = await doResearch(model, nicheVal, styleVal, bgVal);
+          if (researchNote) {
+            setResearch(researchNote);
+            setRisetTotal((t) => t + 1);
+          }
         }
+        setStatus(
+          avoidList.length
+            ? `Menyusun prompt baru (menghindari ${avoidList.length} konsep lama untuk niche ini)…`
+            : 'Menyusun prompt detail & negative prompt…'
+        );
+        ideas = await doGenerate(model, nicheVal, styleVal, moodVal, count, bgVal, researchNote, avoidList);
       }
-      setStatus(
-        avoidList.length
-          ? `Menyusun prompt baru (menghindari ${avoidList.length} konsep lama untuk niche ini)…`
-          : 'Menyusun prompt detail & negative prompt…'
-      );
-      const ideas = await doGenerate(model, nicheVal, styleVal, moodVal, count, bgVal, researchNote, avoidList);
       const newFrames = ideas.map((idea, i) => ({
         id: `${Date.now()}-${i}`,
         niche: nicheVal,
@@ -236,6 +317,8 @@ export default function PromptGenerator() {
         background: String(idea.background || bgVal).trim(),
         prompt: String(idea.prompt || '').trim(),
         negative: String(idea.negative_prompt || '').trim(),
+        diffNote: genMode === 'image' ? String(idea.diff_note || '').trim() : '',
+        fromImage: genMode === 'image',
         model,
       }));
       setFrames((prev) => [...prev, ...newFrames]);
@@ -322,10 +405,12 @@ export default function PromptGenerator() {
 
       <div className="panel">
         <ModelSelect value={model} onChange={setModel} />
-        <label className="checkbox-row" style={{ marginTop: 14 }}>
-          <input type="checkbox" checked={modeHemat} onChange={(e) => setModeHemat(e.target.checked)} />
-          <span>Mode hemat (matikan riset tren web — hemat biaya API)</span>
-        </label>
+        {genMode === 'text' && (
+          <label className="checkbox-row" style={{ marginTop: 14 }}>
+            <input type="checkbox" checked={modeHemat} onChange={(e) => setModeHemat(e.target.checked)} />
+            <span>Mode hemat (matikan riset tren web — hemat biaya API)</span>
+          </label>
+        )}
         <label className="checkbox-row" style={{ marginTop: 10 }}>
           <input type="checkbox" checked={autoSave} onChange={(e) => setAutoSave(e.target.checked)} />
           <span>Simpan otomatis tiap hasil generate ke database (Neon)</span>
@@ -335,6 +420,56 @@ export default function PromptGenerator() {
           <span>Hindari konsep yang mirip dengan riwayat tersimpan untuk niche yang sama (butuh database)</span>
         </label>
       </div>
+
+      <div className="panel">
+        <div className="field">
+          <label>Sumber inspirasi</label>
+          <div className="chip-row">
+            <button type="button" className={'chip' + (genMode === 'text' ? ' active' : '')} onClick={() => setGenMode('text')}>
+              Dari kategori (teks)
+            </button>
+            <button type="button" className={'chip' + (genMode === 'image' ? ' active' : '')} onClick={() => setGenMode('image')}>
+              Dari gambar (upload)
+            </button>
+          </div>
+        </div>
+        {genMode === 'image' && (
+          <div className="field">
+            <label>Gambar referensi</label>
+            {!sourceImage ? (
+              <div className="dropzone-mini" onClick={() => imageInputRef.current?.click()}>
+                <p>{imageBusy ? 'Memuat gambar…' : 'Klik untuk upload gambar referensi (JPG/PNG)'}</p>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  style={{ display: 'none' }}
+                  onChange={(e) => handleImageUpload(e.target.files?.[0])}
+                />
+              </div>
+            ) : (
+              <div className="source-image-preview">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={sourceImage.thumb} alt="" />
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--white)' }}>{sourceImage.filename}</div>
+                  <button className="link-btn" onClick={() => setSourceImage(null)}>
+                    Ganti gambar
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="field-hint">
+              AI akan membuat konsep baru yang terinspirasi gaya/komposisi gambar ini, dengan perubahan nyata di
+              beberapa elemen (pose, warna, latar, detail) — bukan menjiplak persis. Ini membantu mengurangi risiko
+              similarity di Adobe Stock, tapi bukan jaminan mutlak lolos, karena Adobe Stock punya sistem deteksi
+              sendiri yang tidak bisa kita uji dari sini. Pastikan juga gambar yang di-upload adalah milikmu sendiri
+              atau bebas dipakai sebagai referensi.
+            </div>
+          </div>
+        )}
+      </div>
+
 
       <div className="panel">
         <div className="field">
@@ -399,12 +534,18 @@ export default function PromptGenerator() {
         </div>
 
         <div className="btn-row" style={{ flexDirection: 'column' }}>
-          <button className="btn-primary full" disabled={busy} onClick={() => runGenerate()}>
-            Riset &amp; buatkan prompt
+          <button
+            className="btn-primary full"
+            disabled={busy || (genMode === 'image' && (!sourceImage || imageBusy))}
+            onClick={() => runGenerate()}
+          >
+            {genMode === 'image' ? 'Buat konsep dari gambar' : 'Riset & buatkan prompt'}
           </button>
-          <button className="btn-ghost full" disabled={busy} onClick={handleSurprise}>
-            Kejutkan saya (acak)
-          </button>
+          {genMode === 'text' && (
+            <button className="btn-ghost full" disabled={busy} onClick={handleSurprise}>
+              Kejutkan saya (acak)
+            </button>
+          )}
         </div>
       </div>
 
@@ -440,9 +581,9 @@ export default function PromptGenerator() {
         <div className="empty-state">
           <strong>Belum ada berkas di case file ini.</strong>
           <br />
-          Isi kategori, gaya, dan latar belakang di atas, lalu tekan &quot;Riset &amp; buatkan prompt&quot;. Tiap hasil
-          akan menampilkan judul konsep, estimasi potensi jual, tingkat kompetisi, kegunaan, dan satu box
-          prompt+negative prompt yang tinggal disalin ke Google Flow.
+          {genMode === 'image'
+            ? 'Upload gambar referensi di atas, isi kategori/gaya/latar, lalu tekan "Buat konsep dari gambar". Tiap hasil akan menampilkan konsep baru yang terinspirasi gambar itu, lengkap dengan catatan elemen yang sengaja dibuat berbeda.'
+            : 'Isi kategori, gaya, dan latar belakang di atas, lalu tekan "Riset & buatkan prompt". Tiap hasil akan menampilkan judul konsep, estimasi potensi jual, tingkat kompetisi, kegunaan, dan satu box prompt+negative prompt yang tinggal disalin ke Google Flow.'}
         </div>
       ) : (
         <div className="frames">
@@ -453,6 +594,7 @@ export default function PromptGenerator() {
               <div className="frame" key={f.id}>
                 <div className="frame-title-row">
                   {i + 1}. {f.title} {titleStars(f.potential)}
+                  {f.fromImage && <span className="type-pill">Dari gambar</span>}
                 </div>
                 <div className="meta-line">
                   <span className="meta-label">Potensi:</span> {starsMarkup(f.potential)}
@@ -469,12 +611,20 @@ export default function PromptGenerator() {
                     {f.orientation} · latar: {f.background}
                   </span>
                 </div>
-                <div className="prompt-label">Prompt + Negative Prompt</div>
-                <div className="prompt-copy-box">
-                  <span className="prompt-copy-text">{combined}</span>
-                  <button className="copy-icon-btn" onClick={() => copyFrame(f)}>
+                {f.diffNote && (
+                  <div className="meta-line">
+                    <span className="meta-label">Perbedaan dari sumber:</span>{' '}
+                    <span className="meta-value-muted">{f.diffNote}</span>
+                  </div>
+                )}
+                <div className="prompt-label-row">
+                  <div className="prompt-label">Prompt + Negative Prompt</div>
+                  <button className={'copy-btn-inline' + (copiedId === f.id ? ' copied' : '')} onClick={() => copyFrame(f)}>
                     {copiedId === f.id ? '✓ Disalin' : 'Salin'}
                   </button>
+                </div>
+                <div className="prompt-copy-box">
+                  <span className="prompt-copy-text">{combined}</span>
                 </div>
                 <div className="frame-actions">
                   <button className={'save-btn' + (isSaved ? ' saved' : '')} onClick={() => saveFrame(f)} disabled={isSaved}>
