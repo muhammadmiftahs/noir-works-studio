@@ -65,7 +65,7 @@ export default function StatusBar() {
     setGeminiTest({ state: 'testing', message: '' });
     try {
       const data = await callClaude({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-3.6-flash',
         messages: [{ role: 'user', content: 'Reply with exactly one word: OK' }],
         maxTokens: 20,
       });
