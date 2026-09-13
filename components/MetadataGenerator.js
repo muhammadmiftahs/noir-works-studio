@@ -2,11 +2,13 @@
 
 import { useState, useRef, useCallback } from 'react';
 import ModelSelect from './ModelSelect';
+import NicheStats from './NicheStats';
 import HistoryPanel from './HistoryPanel';
 import { DEFAULT_MODEL_ID } from '../lib/models';
 import { callClaude, extractText, withRateLimitRetry } from '../lib/claudeClient';
 import { saveItem } from '../lib/savedItems';
 import { readAsDataURL, resizeImageToBase64 } from '../lib/imageUtils';
+import { estimateCost, formatUsd } from '../lib/costTracker';
 
 const CATEGORIES = [
   [1, 'Animals'], [2, 'Buildings and Architecture'], [3, 'Business'], [4, 'Drinks'],
@@ -186,6 +188,7 @@ export default function MetadataGenerator() {
   const [dragActive, setDragActive] = useState(false);
   const [progress, setProgress] = useState(null); // {done, total}
   const [genAllBusy, setGenAllBusy] = useState(false);
+  const [sessionCost, setSessionCost] = useState(0);
   const [referenceText, setReferenceText] = useState('');
   const [findText, setFindText] = useState('');
   const [replaceText, setReplaceText] = useState('');
@@ -358,6 +361,7 @@ export default function MetadataGenerator() {
         status: 'done',
       };
       updateFrame(id, patch);
+      setSessionCost((prev) => prev + estimateCost(model, 'metadata', 1));
 
       if (!patch.category) {
         try {
@@ -623,6 +627,11 @@ export default function MetadataGenerator() {
               )}
             </div>
             <div className="link-row">
+              {sessionCost > 0 && (
+                <span style={{ fontSize: 11.5, color: 'var(--muted)', marginRight: 10, alignSelf: 'center' }}>
+                  Estimasi biaya sesi ini: <span style={{ color: 'var(--cyan)', fontWeight: 600 }}>{formatUsd(sessionCost)}</span>
+                </span>
+              )}
               <button className="btn-primary" onClick={openPreview} disabled={!frames.length}>Ekspor CSV Adobe Stock</button>
               <button className="btn-ghost" onClick={saveAllDone}>Simpan hasil ke DB</button>
             </div>
@@ -769,6 +778,8 @@ export default function MetadataGenerator() {
           </div>
         )}
       />
+
+      <NicheStats kind="metadata" label="Metadata Generator" />
 
       <div className="footnote">
         <b>Cara pakai:</b> upload foto → klik <em>Generate</em> per foto atau <em>Generate semua</em> (jalan 3 sekaligus + progress bar) → pilih salah satu dari 3 opsi title yang muncul (atau edit manual) → cek keyword &amp; kategori → <em>Ekspor CSV</em> → di Contributor Portal Adobe Stock, buka tab <b>New</b> pada Uploaded Files, pilih <b>Upload CSV</b>. Nama file di kolom <code>Filename</code> harus sama persis dengan file yang sudah kamu upload ke Adobe Stock.

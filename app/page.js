@@ -6,6 +6,7 @@ import PromptGenerator from '../components/PromptGenerator';
 import VideoPromptGenerator from '../components/VideoPromptGenerator';
 import MetadataGenerator from '../components/MetadataGenerator';
 import StatusBar from '../components/StatusBar';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function Home() {
   const [tab, setTab] = useState('prompt');

@@ -1,4 +1,5 @@
 import './globals.css';
+import { ThemeProvider } from '../lib/themeContext';
 
 export const metadata = {
   title: 'Noïr Works Studio',
@@ -9,7 +10,9 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="id">
-      <body>{children}</body>
+      <body>
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
     </html>
   );
 }

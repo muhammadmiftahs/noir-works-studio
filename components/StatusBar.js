@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { callClaude, extractText } from '../lib/claudeClient';
 import { DEFAULT_MODEL_ID } from '../lib/models';
+import ThemeToggle from './ThemeToggle';
 
 function formatBytes(bytes) {
   if (bytes === null || bytes === undefined) return '';
@@ -158,6 +159,9 @@ export default function StatusBar() {
           {geminiTestBusy ? 'Menguji…' : 'Tes Gemini'}
         </button>
       )}
+      <div style={{ marginLeft: 'auto' }}>
+        <ThemeToggle />
+      </div>
       <button className="status-refresh-btn" onClick={loadStatus} title="Refresh status database">⟳</button>
     </div>
   );

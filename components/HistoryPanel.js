@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { listItems, deleteItem, clearItems } from '../lib/savedItems';
 
 export default function HistoryPanel({ kind, label, renderItem }) {
@@ -8,6 +8,8 @@ export default function HistoryPanel({ kind, label, renderItem }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [searchText, setSearchText] = useState('');
+  const [filterDate, setFilterDate] = useState('all'); // all | today | week | month
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -21,6 +23,45 @@ export default function HistoryPanel({ kind, label, renderItem }) {
       setLoading(false);
     }
   }, [kind]);
+
+  const filteredItems = useMemo(() => {
+    let result = items;
+
+    if (searchText.trim()) {
+      const query = searchText.toLowerCase();
+      result = result.filter((item) => {
+        const title = (item.title || '').toLowerCase();
+        const modelStr = (item.model || '').toLowerCase();
+        return title.includes(query) || modelStr.includes(query);
+      });
+    }
+
+    if (filterDate !== 'all') {
+      const now = Date.now();
+      const createdTime = new Date(item.created_at).getTime();
+      const diffMs = now - createdTime;
+      const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+      result = result.filter((item) => {
+        const itemTime = new Date(item.created_at).getTime();
+        const itemDiffMs = now - itemTime;
+        const itemDiffDays = itemDiffMs / (1000 * 60 * 60 * 24);
+
+        switch (filterDate) {
+          case 'today':
+            return itemDiffDays < 1;
+          case 'week':
+            return itemDiffDays < 7;
+          case 'month':
+            return itemDiffDays < 30;
+          default:
+            return true;
+        }
+      });
+    }
+
+    return result;
+  }, [items, searchText, filterDate]);
 
   async function handleDelete(id) {
     try {
@@ -42,11 +83,15 @@ export default function HistoryPanel({ kind, label, renderItem }) {
   }
 
   return (
-    <details className="reference-box" open={open} onToggle={(e) => {
-      const isOpen = e.currentTarget.open;
-      setOpen(isOpen);
-      if (isOpen) load();
-    }}>
+    <details
+      className="reference-box"
+      open={open}
+      onToggle={(e) => {
+        const isOpen = e.currentTarget.open;
+        setOpen(isOpen);
+        if (isOpen) load();
+      }}
+    >
       <summary>📦 Riwayat tersimpan di database — {label} {items.length ? `(${items.length})` : ''}</summary>
       <div className="reference-body">
         {loading && <div className="status-row"><span className="spinner"></span> Memuat riwayat…</div>}
@@ -56,19 +101,61 @@ export default function HistoryPanel({ kind, label, renderItem }) {
         )}
         {!loading && items.length > 0 && (
           <>
+            <div style={{ marginBottom: 12, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <input
+                type="text"
+                placeholder="Cari judul atau model..."
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                style={{
+                  fontSize: 12,
+                  padding: '6px 10px',
+                  borderRadius: 3,
+                  border: '1px solid var(--line)',
+                  background: 'var(--panel-raised)',
+                  color: 'var(--white)',
+                  flex: 1,
+                  minWidth: 150,
+                }}
+              />
+              <select
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                style={{
+                  fontSize: 12,
+                  padding: '6px 10px',
+                  borderRadius: 3,
+                  border: '1px solid var(--line)',
+                  background: 'var(--panel-raised)',
+                  color: 'var(--white)',
+                }}
+              >
+                <option value="all">Semua waktu</option>
+                <option value="today">Hari ini</option>
+                <option value="week">Minggu ini</option>
+                <option value="month">Bulan ini</option>
+              </select>
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>{filteredItems.length} hasil</span>
+            </div>
             <div style={{ maxHeight: 320, overflowY: 'auto' }}>
-              {items.map((item) => (
-                <div className="history-item" key={item.id}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {renderItem ? renderItem(item) : <div className="history-title">{item.title}</div>}
-                    <div className="history-meta">
-                      {item.model ? `${item.model} · ` : ''}
-                      {new Date(item.created_at).toLocaleString('id-ID')}
+              {filteredItems.length === 0 ? (
+                <div className="field-hint">Tidak ada hasil yang cocok.</div>
+              ) : (
+                filteredItems.map((item) => (
+                  <div className="history-item" key={item.id}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {renderItem ? renderItem(item) : <div className="history-title">{item.title}</div>}
+                      <div className="history-meta">
+                        {item.model ? `${item.model} · ` : ''}
+                        {new Date(item.created_at).toLocaleString('id-ID')}
+                      </div>
                     </div>
+                    <button className="link-btn" onClick={() => handleDelete(item.id)}>
+                      Hapus
+                    </button>
                   </div>
-                  <button className="link-btn" onClick={() => handleDelete(item.id)}>Hapus</button>
-                </div>
-              ))}
+                ))
+              )}
             </div>
             <button className="btn-ghost" style={{ marginTop: 10 }} onClick={handleClearAll}>
               Hapus semua riwayat {label}

@@ -16,6 +16,46 @@
   --radius: 3px;
 }
 
+[data-theme='light'] {
+  --bg: #f5f5f7;
+  --panel: #ffffff;
+  --panel-raised: #f9f9fb;
+  --line: #d1d1d6;
+  --white: #1d1d1f;
+  --muted: #6e6e73;
+  --cyan: #007aff;
+  --red: #ff3b30;
+  --gold: #ff9500;
+  --paper: #ffffff;
+  --ink: #1d1d1f;
+  --ink-dim: #86868b;
+}
+
+[data-theme='light'] .photo-frame {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+[data-theme='light'] .photo-thumb {
+  opacity: 1;
+}
+
+[data-theme='light'] .copy-btn-inline {
+  background: var(--cyan);
+  color: #ffffff;
+}
+
+[data-theme='light'] .copy-btn-inline:hover {
+  background: #005ec4;
+}
+
+[data-theme='light'] .modal-panel {
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+[data-theme='light'] .status-chip {
+  border-color: var(--line);
+}
+
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 body {
@@ -360,55 +400,117 @@ input::placeholder, textarea::placeholder { color: #5c5c60; }
 .history-title { font-size: 13px; color: var(--white); }
 
 @media (max-width: 640px) {
+  /* Base mobile adjustments */
+  html, body { -webkit-text-size-adjust: 100%; }
   body { font-size: 13px; }
-  .wrap { padding: 20px 14px 60px; }
-  .wrap.login-wrap { padding-top: 48px; }
+  .wrap { padding: 20px 14px 80px; }
+  .wrap.login-wrap { padding-top: 40px; }
+
+  /* Tap targets yang lebih besar untuk sentuhan */
+  button { min-height: 40px; }
+  .tab-btn { min-height: 48px; flex: 1 1 100%; }
+  .chip { min-height: 36px; padding: 8px 14px; }
+
+  /* Input/select lebih mudah diketik di mobile */
+  select, input[type="text"], input[type="password"], textarea {
+    font-size: 15px;
+    padding: 12px 14px;
+  }
 
   .app-header { padding-bottom: 18px; margin-bottom: 16px; gap: 14px; }
-  .title { font-size: 24px; }
-  .desc { max-width: none; font-size: 12.5px; }
-  .header-stats { gap: 20px; }
-  .stat-value { font-size: 17px; }
+  .title { font-size: 26px; }
+  .desc { max-width: none; font-size: 13px; line-height: 1.6; }
+  .header-stats { gap: 16px; flex-wrap: wrap; justify-content: flex-start; }
+  .stat-value { font-size: 18px; }
 
-  /* Status chips: keep them from cramping together, let the row wrap freely */
-  .status-bar { gap: 8px; padding: 6px 0; }
-  .status-chip { padding: 6px 10px; font-size: 10.5px; }
+  /* Status chips: stacking supaya readable */
+  .status-bar {
+    gap: 8px;
+    margin-bottom: 14px;
+    align-items: flex-start;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .status-chip { padding: 6px 10px; font-size: 10px; max-width: 100%; }
+  .status-test-btn { font-size: 10.5px; padding: 8px 14px; }
 
-  /* Tabs: stack vertically and let the logout button sit under them instead
-     of squeezing everything onto one unreadable row */
-  .tabs-row { flex-direction: column; align-items: stretch; gap: 10px; }
-  .tabs { width: 100%; }
-  .tab-btn { flex: 1 1 auto; text-align: center; padding: 10px 12px; font-size: 11.5px; }
+  /* Tabs: horizontal scroll untuk hindari wrapping berlebih */
+  .tabs-row { flex-direction: column; align-items: stretch; gap: 10px; margin-bottom: 16px; }
+  .tabs { width: 100%; gap: 6px; }
   .logout-btn { width: 100%; }
 
-  .panel { padding: 16px; margin-bottom: 14px; }
-  .field { margin-bottom: 15px; }
+  .panel { padding: 14px; margin-bottom: 14px; }
+  .field { margin-bottom: 14px; }
 
-  /* Full-width, stacked action buttons are much easier to tap than a tight row */
-  .btn-row { flex-direction: column; }
+  /* Full-width, stacked action buttons are much easier to tap */
+  .btn-row { flex-direction: column; gap: 8px; }
   .btn-row .btn-primary, .btn-row .btn-ghost { width: 100%; }
-  .count-row { gap: 10px; }
+  .btn-primary { font-size: 13px; padding: 14px 18px; }
+  .btn-ghost { font-size: 12px; }
 
-  .chip { padding: 7px 11px; font-size: 11px; }
+  /* Model selector */
   .model-badges { gap: 6px; }
+  .model-badge { font-size: 10.5px; padding: 6px 12px; min-height: 36px; }
 
-  /* Photo grid: one card per row instead of a cramped auto-fill grid */
+  /* Frame/prompt cards */
+  .frame { padding: 14px 16px; }
+  .frame-title-row { font-size: 14px; }
+  .meta-line { font-size: 12px; }
+
+  .count-row { gap: 8px; }
+  .chip { padding: 7px 11px; font-size: 11px; }
+
+  /* Photo grid: single column */
   .grid { grid-template-columns: 1fr; gap: 14px; }
-  .photo-actions { flex-direction: column; }
+  .photo-actions { flex-direction: row; gap: 6px; }
+  .photo-actions button { flex: 1; font-size: 11px; }
 
   .prompt-copy-box { padding: 12px 14px; }
   .prompt-copy-text { font-size: 12px; }
   .frame-actions { gap: 12px 16px; }
 
-  .replace-bar { flex-direction: column; align-items: stretch; }
+  /* Replace bar stacks */
+  .replace-bar { flex-direction: column; align-items: stretch; gap: 8px; }
   .replace-bar input { width: 100%; }
 
-  /* Wide data tables need horizontal scroll on narrow screens instead of
-     squishing every column unreadably small */
-  .modal-panel { max-height: 88vh; }
+  /* Table/modal optimization */
+  .modal-overlay { padding: 12px; }
+  .modal-panel { max-height: 88vh; border-radius: 4px; }
   .modal-body { padding: 0 12px; -webkit-overflow-scrolling: touch; }
   .preview-table { min-width: 640px; }
   .modal-head, .modal-foot { padding: 12px 14px; flex-wrap: wrap; }
+  .modal-foot button { flex: 1; }
 
   .history-item { flex-direction: column; gap: 4px; }
+
+  /* Results header: title lebih kecil, link row tetap inline */
+  .results-head { margin: 24px 0 12px; }
+  .results-head h2 { font-size: 14px; }
+  .link-row { gap: 10px; }
+  .link-btn { font-size: 11px; }
+
+  /* Research box */
+  .research-box { padding: 14px; }
+  .research-text { font-size: 12px; line-height: 1.7; }
+
+  /* Dropzone */
+  .dropzone { padding: 28px 16px; }
+  .dropzone h3 { font-size: 14px; }
+  .dropzone p { font-size: 12px; }
+
+  /* Fine-tune status/test buttons */
+  .btn-ghost.full { padding: 12px; }
+
+  /* Fixed bottom nav/floating help? Skip — body padding-bottom 80px cukup */
+}
+
+@media (max-width: 380px) {
+  /* iPhone SE & mini optimization */
+  .title { font-size: 22px; }
+  .header-stats { gap: 10px; }
+  .stat-value { font-size: 16px; }
+  .stat-label { font-size: 10px; }
+  .status-chip { font-size: 9.5px; padding: 5px 8px; }
+  .model-badge { flex: 1 1 auto; text-align: center; }
+  .tab-btn { font-size: 11px; padding: 10px 8px; }
 }

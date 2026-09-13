@@ -3,10 +3,12 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import ModelSelect from './ModelSelect';
 import HistoryPanel from './HistoryPanel';
+import NicheStats from './NicheStats';
 import { DEFAULT_MODEL_ID } from '../lib/models';
 import { callClaude, extractText, extractJsonBlock } from '../lib/claudeClient';
 import { saveItem, listItems, getCounts } from '../lib/savedItems';
 import { readAsDataURL, resizeImageToBase64 } from '../lib/imageUtils';
+import { estimateCost, formatUsd } from '../lib/costTracker';
 
 // Riwayat video disimpan dengan "kind" berbeda dari Prompt Generator gambar
 // (kind: "prompt"), supaya daftar anti-duplikat tidak saling campur — konsep
@@ -226,8 +228,10 @@ export default function VideoPromptGenerator() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [progress, setProgress] = useState(null);
   const [videoTotal, setVideoTotal] = useState(0);
   const [risetTotal, setRisetTotal] = useState(0);
+  const [sessionCost, setSessionCost] = useState(0);
   const [copiedId, setCopiedId] = useState(null);
   const [savedIds, setSavedIds] = useState(new Set());
 
@@ -291,9 +295,10 @@ export default function VideoPromptGenerator() {
       setError('Pilih atau isi dulu kategori/niche-nya.');
       return;
     }
-    setBusy(true);
-    setResearch('');
-    try {
+      setBusy(true);
+      setResearch('');
+      setProgress({ done: 0, total: count });
+      try {
       let avoidList = [];
       if (avoidDuplicates) {
         try {
@@ -354,6 +359,14 @@ export default function VideoPromptGenerator() {
       }));
       setFrames((prev) => [...prev, ...newFrames]);
       setVideoTotal((t) => t + newFrames.length);
+      setProgress({ done: count, total: count });
+      setTimeout(() => setProgress(null), 1200);
+
+      let costThisRun = 0;
+      if (!modeHemat) costThisRun += estimateCost(model, 'videoResearch');
+      costThisRun += estimateCost(model, genMode === 'image' ? 'videoGenerateFromImage' : 'videoGenerate', count);
+      setSessionCost((prev) => prev + costThisRun);
+
       if (autoSave) {
         newFrames.forEach((f) => saveFrame(f));
       }
@@ -439,6 +452,12 @@ export default function VideoPromptGenerator() {
             <div className="stat-value">{risetTotal}</div>
             <div className="stat-label">riset</div>
           </div>
+          {sessionCost > 0 && (
+            <div className="stat-box">
+              <div className="stat-value" style={{ color: 'var(--gold)' }}>{formatUsd(sessionCost)}</div>
+              <div className="stat-label">estimasi biaya</div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -611,6 +630,11 @@ export default function VideoPromptGenerator() {
       <div className="results-head">
         <h2>Hasil prompt video</h2>
         <div className="link-row">
+          {sessionCost > 0 && (
+            <span style={{ fontSize: 11.5, color: 'var(--muted)', marginRight: 10 }}>
+              Estimasi biaya sesi ini: <span style={{ color: 'var(--cyan)', fontWeight: 600 }}>{formatUsd(sessionCost)}</span>
+            </span>
+          )}
           <button className="link-btn" disabled={!frames.length} onClick={exportTxt}>
             Unduh .txt
           </button>
@@ -689,6 +713,8 @@ export default function VideoPromptGenerator() {
           </div>
         )}
       />
+
+      <NicheStats kind={HISTORY_KIND} label="Video Prompt Generator" />
 
       <div className="footnote">
         Riset dan prompt diproses lewat server aplikasi ini, API key tidak pernah terlihat di sisi klien. Hasil
