@@ -15,8 +15,10 @@ function formatBytes(bytes) {
 export default function StatusBar() {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [apiTest, setApiTest] = useState({ state: 'idle', message: '' }); // idle | testing | ok | error
-  const [apiTestBusy, setApiTestBusy] = useState(false);
+  const [anthropicTest, setAnthropicTest] = useState({ state: 'idle', message: '' });
+  const [geminiTest, setGeminiTest] = useState({ state: 'idle', message: '' });
+  const [anthropicTestBusy, setAnthropicTestBusy] = useState(false);
+  const [geminiTestBusy, setGeminiTestBusy] = useState(false);
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
@@ -39,20 +41,40 @@ export default function StatusBar() {
   // memanggil model beneran dan memakan sedikit token/biaya, makanya dibuat
   // manual (tombol), tidak otomatis jalan tiap kali halaman dibuka.
   async function testAnthropic() {
-    setApiTestBusy(true);
-    setApiTest({ state: 'testing', message: '' });
+    setAnthropicTestBusy(true);
+    setAnthropicTest({ state: 'testing', message: '' });
     try {
       const data = await callClaude({
-        model: DEFAULT_MODEL_ID,
+        model: 'claude-sonnet-5',
         messages: [{ role: 'user', content: 'Reply with exactly one word: OK' }],
         maxTokens: 20,
       });
       const text = extractText(data);
-      setApiTest({ state: 'ok', message: text.trim().slice(0, 40) });
+      setAnthropicTest({ state: 'ok', message: text.trim().slice(0, 40) });
     } catch (err) {
-      setApiTest({ state: 'error', message: err.message || 'Gagal terhubung.' });
+      setAnthropicTest({ state: 'error', message: err.message || 'Gagal terhubung.' });
     } finally {
-      setApiTestBusy(false);
+      setAnthropicTestBusy(false);
+    }
+  }
+
+  // Tes koneksi Gemini — sama seperti Anthropic, ini memanggil API beneran
+  // untuk verifikasi key valid dan bisa generate.
+  async function testGemini() {
+    setGeminiTestBusy(true);
+    setGeminiTest({ state: 'testing', message: '' });
+    try {
+      const data = await callClaude({
+        model: 'gemini-2.0-flash',
+        messages: [{ role: 'user', content: 'Reply with exactly one word: OK' }],
+        maxTokens: 20,
+      });
+      const text = extractText(data);
+      setGeminiTest({ state: 'ok', message: text.trim().slice(0, 40) });
+    } catch (err) {
+      setGeminiTest({ state: 'error', message: err.message || 'Gagal terhubung.' });
+    } finally {
+      setGeminiTestBusy(false);
     }
   }
 
@@ -89,13 +111,13 @@ export default function StatusBar() {
   if (!status.anthropicConfigured) {
     anthropicCls = 'status-chip-error';
     anthropicText = 'Anthropic API: belum diset';
-  } else if (apiTest.state === 'ok') {
+  } else if (anthropicTest.state === 'ok') {
     anthropicCls = 'status-chip-ok';
     anthropicText = 'Anthropic API: terverifikasi ✓';
-  } else if (apiTest.state === 'error') {
+  } else if (anthropicTest.state === 'error') {
     anthropicCls = 'status-chip-error';
-    anthropicText = `Anthropic API: gagal — ${apiTest.message}`;
-  } else if (apiTest.state === 'testing') {
+    anthropicText = `Anthropic API: gagal — ${anthropicTest.message}`;
+  } else if (anthropicTest.state === 'testing') {
     anthropicCls = 'status-chip-neutral';
     anthropicText = 'Anthropic API: menguji…';
   } else {
@@ -107,9 +129,18 @@ export default function StatusBar() {
   if (!status.geminiConfigured) {
     geminiCls = 'status-chip-error';
     geminiText = 'Gemini API: belum diset';
-  } else {
+  } else if (geminiTest.state === 'ok') {
     geminiCls = 'status-chip-ok';
-    geminiText = 'Gemini API: sudah diset ✓';
+    geminiText = 'Gemini API: terverifikasi ✓';
+  } else if (geminiTest.state === 'error') {
+    geminiCls = 'status-chip-error';
+    geminiText = `Gemini API: gagal — ${geminiTest.message}`;
+  } else if (geminiTest.state === 'testing') {
+    geminiCls = 'status-chip-neutral';
+    geminiText = 'Gemini API: menguji…';
+  } else {
+    geminiCls = 'status-chip-neutral';
+    geminiText = 'Gemini API: sudah diset (belum dites)';
   }
 
   return (
@@ -117,9 +148,14 @@ export default function StatusBar() {
       <span className={`status-chip ${dbCls}`}>{dbText}</span>
       <span className={`status-chip ${anthropicCls}`}>{anthropicText}</span>
       <span className={`status-chip ${geminiCls}`}>{geminiText}</span>
-      {status.anthropicConfigured && apiTest.state !== 'ok' && (
-        <button className="status-test-btn" onClick={testAnthropic} disabled={apiTestBusy}>
-          {apiTestBusy ? 'Menguji…' : 'Tes sekarang'}
+      {status.anthropicConfigured && anthropicTest.state !== 'ok' && (
+        <button className="status-test-btn" onClick={testAnthropic} disabled={anthropicTestBusy}>
+          {anthropicTestBusy ? 'Menguji…' : 'Tes Anthropic'}
+        </button>
+      )}
+      {status.geminiConfigured && geminiTest.state !== 'ok' && (
+        <button className="status-test-btn" onClick={testGemini} disabled={geminiTestBusy}>
+          {geminiTestBusy ? 'Menguji…' : 'Tes Gemini'}
         </button>
       )}
       <button className="status-refresh-btn" onClick={loadStatus} title="Refresh status database">⟳</button>
