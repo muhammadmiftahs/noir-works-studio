@@ -421,6 +421,82 @@ a:hover { text-shadow: 0 0 8px var(--cyan-glow); }
 .stat-value { font-size: 20px; font-weight: 600; color: var(--cyan); }
 .stat-label { font-size: 11px; color: var(--muted); }
 
+/* Sticky Navbar */
+.sticky-navbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--panel);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 20px 12px;
+  margin: -40px -24px 24px -24px;
+  box-shadow: var(--shadow-md);
+}
+
+.navbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.navbar-logo {
+  flex-shrink: 0;
+}
+
+.navbar-logo .eyebrow {
+  margin-bottom: 2px;
+  font-size: 10px;
+}
+
+.navbar-logo .title {
+  font-size: 24px;
+}
+
+.navbar-status {
+  flex: 1;
+  max-width: 600px;
+}
+
+.navbar-status .status-bar {
+  margin-bottom: 0;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.navbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.navbar-tabs {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+@media (max-width: 768px) {
+  .sticky-navbar {
+    margin: -20px -14px 18px -14px;
+    padding: 12px 14px 10px;
+  }
+  .navbar-inner {
+    flex-wrap: wrap;
+  }
+  .navbar-status {
+    order: 3;
+    width: 100%;
+    max-width: none;
+  }
+}
+
 /* Status bar */
 .status-bar {
   display: flex;

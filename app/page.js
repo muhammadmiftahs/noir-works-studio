@@ -8,6 +8,15 @@ import VideoPromptGenerator from '../components/VideoPromptGenerator';
 import MetadataGenerator from '../components/MetadataGenerator';
 import ImageToPrompt from '../components/ImageToPrompt';
 import StatusBar from '../components/StatusBar';
+import ThemeToggle from '../components/ThemeToggle';
+
+const TABS = [
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'prompt', label: 'Prompt' },
+  { id: 'video', label: 'Video' },
+  { id: 'metadata', label: 'Metadata' },
+  { id: 'image2prompt', label: 'Image→Prompt' },
+];
 
 export default function Home() {
   const [tab, setTab] = useState('dashboard');
@@ -21,35 +30,55 @@ export default function Home() {
 
   return (
     <div className="wrap">
-      <StatusBar />
-      <div className="tabs-row">
-        <div className="tabs tabs-scroll">
-          <button className={'tab-btn' + (tab === 'dashboard' ? ' active' : '')} onClick={() => setTab('dashboard')}>
-            Dashboard
-          </button>
-          <button className={'tab-btn' + (tab === 'prompt' ? ' active' : '')} onClick={() => setTab('prompt')}>
-            Prompt Generator
-          </button>
-          <button className={'tab-btn' + (tab === 'video' ? ' active' : '')} onClick={() => setTab('video')}>
-            Video Prompt Generator
-          </button>
-          <button className={'tab-btn' + (tab === 'metadata' ? ' active' : '')} onClick={() => setTab('metadata')}>
-            Metadata Generator
-          </button>
-          <button className={'tab-btn' + (tab === 'image2prompt' ? ' active' : '')} onClick={() => setTab('image2prompt')}>
-            Image-to-Prompt
-          </button>
+      {/* ============ STICKY NAVBAR ============ */}
+      <div className="sticky-navbar">
+        <div className="navbar-inner">
+          {/* Logo */}
+          <div className="navbar-logo">
+            <div className="eyebrow">CASE FILE</div>
+            <h1 className="title">
+              NO<span className="accent">Ï</span>R
+            </h1>
+          </div>
+
+          {/* Status Bar di tengah */}
+          <div className="navbar-status">
+            <StatusBar />
+          </div>
+
+          {/* Logout & Theme */}
+          <div className="navbar-actions">
+            <ThemeToggle />
+            <button className="btn-ghost logout-btn" onClick={handleLogout} title="Keluar dari aplikasi ini">
+              Keluar
+            </button>
+          </div>
         </div>
-        <button className="btn-ghost logout-btn" onClick={handleLogout} title="Keluar dari aplikasi ini">
-          Keluar
-        </button>
+
+        {/* Tab Switcher di bawah logo */}
+        <div className="navbar-tabs">
+          <div className="tabs tabs-scroll">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                className={'tab-btn' + (tab === t.id ? ' active' : '')}
+                onClick={() => setTab(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {tab === 'dashboard' && <Dashboard />}
-      {tab === 'prompt' && <PromptGenerator />}
-      {tab === 'video' && <VideoPromptGenerator />}
-      {tab === 'metadata' && <MetadataGenerator />}
-      {tab === 'image2prompt' && <ImageToPrompt />}
+      {/* ============ KONTEN UTAMA ============ */}
+      <div className="main-content">
+        {tab === 'dashboard' && <Dashboard />}
+        {tab === 'prompt' && <PromptGenerator />}
+        {tab === 'video' && <VideoPromptGenerator />}
+        {tab === 'metadata' && <MetadataGenerator />}
+        {tab === 'image2prompt' && <ImageToPrompt />}
+      </div>
     </div>
   );
 }

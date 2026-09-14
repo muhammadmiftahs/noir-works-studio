@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { callClaude, extractText } from '../lib/claudeClient';
-import { DEFAULT_MODEL_ID } from '../lib/models';
-import ThemeToggle from './ThemeToggle';
 
 function formatBytes(bytes) {
   if (bytes === null || bytes === undefined) return '';
@@ -173,9 +171,6 @@ export default function StatusBar() {
             </button>
           )}
         </div>
-      </div>
-      <div className="status-bar-bottom">
-        <ThemeToggle />
       </div>
     </div>
   );
