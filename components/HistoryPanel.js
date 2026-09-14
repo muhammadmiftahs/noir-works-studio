@@ -38,22 +38,18 @@ export default function HistoryPanel({ kind, label, renderItem }) {
 
     if (filterDate !== 'all') {
       const now = Date.now();
-      const createdTime = new Date(item.created_at).getTime();
-      const diffMs = now - createdTime;
-      const diffDays = diffMs / (1000 * 60 * 60 * 24);
-
       result = result.filter((item) => {
         const itemTime = new Date(item.created_at).getTime();
-        const itemDiffMs = now - itemTime;
-        const itemDiffDays = itemDiffMs / (1000 * 60 * 60 * 24);
+        const diffMs = now - itemTime;
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
 
         switch (filterDate) {
           case 'today':
-            return itemDiffDays < 1;
+            return diffDays < 1;
           case 'week':
-            return itemDiffDays < 7;
+            return diffDays < 7;
           case 'month':
-            return itemDiffDays < 30;
+            return diffDays < 30;
           default:
             return true;
         }

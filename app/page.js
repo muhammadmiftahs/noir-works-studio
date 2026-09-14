@@ -2,14 +2,14 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Dashboard from '../components/Dashboard';
 import PromptGenerator from '../components/PromptGenerator';
 import VideoPromptGenerator from '../components/VideoPromptGenerator';
 import MetadataGenerator from '../components/MetadataGenerator';
 import StatusBar from '../components/StatusBar';
-import ThemeToggle from '../components/ThemeToggle';
 
 export default function Home() {
-  const [tab, setTab] = useState('prompt');
+  const [tab, setTab] = useState('dashboard');
   const router = useRouter();
 
   async function handleLogout() {
@@ -23,6 +23,9 @@ export default function Home() {
       <StatusBar />
       <div className="tabs-row">
         <div className="tabs tabs-scroll">
+          <button className={'tab-btn' + (tab === 'dashboard' ? ' active' : '')} onClick={() => setTab('dashboard')}>
+            Dashboard
+          </button>
           <button className={'tab-btn' + (tab === 'prompt' ? ' active' : '')} onClick={() => setTab('prompt')}>
             Prompt Generator
           </button>
@@ -38,6 +41,7 @@ export default function Home() {
         </button>
       </div>
 
+      {tab === 'dashboard' && <Dashboard />}
       {tab === 'prompt' && <PromptGenerator />}
       {tab === 'video' && <VideoPromptGenerator />}
       {tab === 'metadata' && <MetadataGenerator />}
