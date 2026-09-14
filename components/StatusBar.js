@@ -96,73 +96,87 @@ export default function StatusBar() {
     );
   }
 
-  let dbCls, dbText;
+  let dbCls, dbText, dbShortText;
   if (!status.database.configured) {
     dbCls = 'status-chip-error';
     dbText = 'Database: belum diset';
+    dbShortText = 'DB: ✗ belum diset';
   } else if (!status.database.connected) {
     dbCls = 'status-chip-error';
     dbText = `Database: gagal terhubung${status.database.error ? ' — ' + status.database.error : ''}`;
+    dbShortText = 'DB: ✗ gagal';
   } else {
     dbCls = 'status-chip-ok';
     dbText = `Database: terhubung · ${formatBytes(status.database.sizeBytes)} terpakai`;
+    dbShortText = `DB: ✓ ${formatBytes(status.database.sizeBytes)}`;
   }
 
   let anthropicCls, anthropicText;
   if (!status.anthropicConfigured) {
     anthropicCls = 'status-chip-error';
-    anthropicText = 'Anthropic API: belum diset';
+    anthropicText = 'Anthropic: belum diset';
   } else if (anthropicTest.state === 'ok') {
     anthropicCls = 'status-chip-ok';
-    anthropicText = 'Anthropic API: terverifikasi ✓';
+    anthropicText = 'Anthropic: ✓ OK';
   } else if (anthropicTest.state === 'error') {
     anthropicCls = 'status-chip-error';
-    anthropicText = `Anthropic API: gagal — ${anthropicTest.message}`;
+    anthropicText = `Anthropic: ✗ ${anthropicTest.message}`;
   } else if (anthropicTest.state === 'testing') {
     anthropicCls = 'status-chip-neutral';
-    anthropicText = 'Anthropic API: menguji…';
+    anthropicText = 'Anthropic: menguji…';
   } else {
-    anthropicCls = 'status-chip-neutral';
-    anthropicText = 'Anthropic API: sudah diset (belum dites)';
+    anthropicCls = 'status-chip-warning';
+    anthropicText = 'Anthropic: ⚠ belum ditest';
   }
 
   let geminiCls, geminiText;
   if (!status.geminiConfigured) {
     geminiCls = 'status-chip-error';
-    geminiText = 'Gemini API: belum diset';
+    geminiText = 'Gemini: belum diset';
   } else if (geminiTest.state === 'ok') {
     geminiCls = 'status-chip-ok';
-    geminiText = 'Gemini API: terverifikasi ✓';
+    geminiText = 'Gemini: ✓ OK';
   } else if (geminiTest.state === 'error') {
     geminiCls = 'status-chip-error';
-    geminiText = `Gemini API: gagal — ${geminiTest.message}`;
+    geminiText = `Gemini: ✗ ${geminiTest.message}`;
   } else if (geminiTest.state === 'testing') {
     geminiCls = 'status-chip-neutral';
-    geminiText = 'Gemini API: menguji…';
+    geminiText = 'Gemini: menguji…';
   } else {
-    geminiCls = 'status-chip-neutral';
-    geminiText = 'Gemini API: sudah diset (belum dites)';
+    geminiCls = 'status-chip-warning';
+    geminiText = 'Gemini: ⚠ belum ditest';
   }
 
   return (
     <div className="status-bar">
-      <span className={`status-chip ${dbCls}`}>{dbText}</span>
-      <span className={`status-chip ${anthropicCls}`}>{anthropicText}</span>
-      <span className={`status-chip ${geminiCls}`}>{geminiText}</span>
-      {status.anthropicConfigured && anthropicTest.state !== 'ok' && (
-        <button className="status-test-btn" onClick={testAnthropic} disabled={anthropicTestBusy}>
-          {anthropicTestBusy ? 'Menguji…' : 'Tes Anthropic'}
-        </button>
-      )}
-      {status.geminiConfigured && geminiTest.state !== 'ok' && (
-        <button className="status-test-btn" onClick={testGemini} disabled={geminiTestBusy}>
-          {geminiTestBusy ? 'Menguji…' : 'Tes Gemini'}
-        </button>
-      )}
-      <div style={{ marginLeft: 'auto' }}>
+      <div className="status-bar-top">
+        <span className={`status-chip ${dbCls}`}>
+          <span className="status-text-full">{dbText}</span>
+          <span className="status-text-short">{dbShortText}</span>
+        </span>
+        <button className="status-refresh-btn" onClick={loadStatus} title="Refresh status">⟳</button>
+      </div>
+      <div className="status-bar-middle">
+        <div className="status-bar-group">
+          <span className={`status-chip ${anthropicCls}`}>{anthropicText}</span>
+          {status.anthropicConfigured && anthropicTest.state !== 'ok' && (
+            <button className="status-test-btn" onClick={testAnthropic} disabled={anthropicTestBusy}>
+              {anthropicTestBusy ? '…' : 'Test'}
+            </button>
+          )}
+        </div>
+        <div className="status-bar-group">
+          <span className={`status-chip ${geminiCls}`}>{geminiText}</span>
+          {status.geminiConfigured && geminiTest.state !== 'ok' && (
+            <button className="status-test-btn" onClick={testGemini} disabled={geminiTestBusy}>
+              {geminiTestBusy ? '…' : 'Test'}
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="status-bar-bottom">
         <ThemeToggle />
       </div>
-      <button className="status-refresh-btn" onClick={loadStatus} title="Refresh status database">⟳</button>
     </div>
   );
 }
