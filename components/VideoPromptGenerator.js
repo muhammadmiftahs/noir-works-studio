@@ -6,9 +6,16 @@ import HistoryPanel from './HistoryPanel';
 import NicheStats from './NicheStats';
 import { DEFAULT_MODEL_ID } from '../lib/models';
 import { callClaude, extractText, extractJsonBlock } from '../lib/claudeClient';
-import { saveItem, listItems, getCounts } from '../lib/savedItems';
+import { saveItem, listItems, getCounts, listUserPresets, saveUserPreset, deleteUserPreset } from '../lib/savedItems';
 import { readAsDataURL, resizeImageToBase64 } from '../lib/imageUtils';
 import { estimateCost, formatUsd } from '../lib/costTracker';
+import {
+  LIGHTING_PRESETS,
+  LENS_PRESETS,
+  FILM_PRESETS,
+  PROHIBIT_OPTIONS_VIDEO,
+  MOTION_INTENSITY_LEVELS,
+} from '../lib/promptPresets';
 
 // Riwayat video disimpan dengan "kind" berbeda dari Prompt Generator gambar
 // (kind: "prompt"), supaya daftar anti-duplikat tidak saling campur — konsep
@@ -18,6 +25,34 @@ const HISTORY_KIND = 'video-prompt';
 // "riset"), supaya total-nya tidak tercampur.
 const RISET_KIND = 'riset-video';
 const MAX_AVOID_TITLES = 40;
+
+function buildEnhancementBlock(lightingId, lensId, filmId, motionLevel) {
+  const blocks = [];
+  
+  const lighting = LIGHTING_PRESETS.find((p) => p.id === lightingId);
+  if (lighting?.prompt) blocks.push(`Lighting: ${lighting.prompt}`);
+  
+  const lens = LENS_PRESETS.find((p) => p.id === lensId);
+  if (lens?.prompt) blocks.push(`Lens: ${lens.prompt}`);
+  
+  const film = FILM_PRESETS.find((p) => p.id === filmId);
+  if (film?.prompt) blocks.push(`Color Profile: ${film.prompt}`);
+
+  const motion = MOTION_INTENSITY_LEVELS.find((m) => m.level === motionLevel);
+  if (motion?.prompt) blocks.push(`Motion Intensity: ${motion.prompt}`);
+  
+  return blocks.length ? `\n\nTechnical Enhancements:\n${blocks.join('\n')}` : '';
+}
+
+function buildProhibitBlock(prohibitIds) {
+  const prohibited = prohibitIds
+    .map((id) => PROHIBIT_OPTIONS_VIDEO.find((p) => p.id === id))
+    .filter(Boolean)
+    .map((p) => p.negative)
+    .join(', ');
+  
+  return prohibited ? `Prohibit Technical Guidelines: ${prohibited}` : '';
+}
 
 const NICHE_OPTIONS = [
   { value: 'bisnis & korporat', label: 'Bisnis & korporat' },
@@ -131,7 +166,7 @@ function contentTypeGuidance(contentType) {
   }
 }
 
-async function doGenerateVideo(model, { niche, style, mood, count, aspectRatio, cameraMovement, contentType, researchNote, avoidList }) {
+async function doGenerateVideo(model, { niche, style, mood, count, aspectRatio, cameraMovement, contentType, researchNote, avoidList, enhancementBlock, prohibitBlock }) {
   const systemPrompt =
     'Kamu adalah konsultan konten microstock VIDEO (Adobe Stock Footage) sekaligus penyusun prompt untuk Google Flow (yang menjalankan model Veo). Untuk tiap konsep, berikan analisis singkat gaya riset pasar DAN prompt video yang detail dan siap pakai. ' +
     'Ketentuan prompt video (field "prompt"): tulis dalam Bahasa Inggris, gunakan frasa singkat dan spesifik (bukan paragraf panjang bertele-tele) — ikuti urutan: subjek utama & aksi yang terjadi, setting/lokasi, gerakan kamera, pencahayaan, gaya visual, lalu penutup singkat soal pacing/durasi (sebutkan sekitar 8 detik). WAJIB sertakan instruksi eksplisit "no dialogue, no spoken words, no on-screen text, no subtitles, no logos" karena ini akan dijual sebagai b-roll/footage tanpa audio/teks. Jangan sertakan merek, karakter berhak cipta, atau wajah tokoh publik yang bisa dikenali. ' +
@@ -143,6 +178,8 @@ async function doGenerateVideo(model, { niche, style, mood, count, aspectRatio, 
   let userPrompt = `Buatkan ${count} konsep video berbeda untuk kategori: "${niche}". Gaya visual: ${style}. Rasio aspek target: ${aspectRatio} (sebutkan di prompt kalau relevan, tapi ini akan diset terpisah di Google Flow). Tipe konten: ${contentTypeLabel(contentType)} — ${guidance}`;
   if (cameraMovement !== 'otomatis') userPrompt += ` Gerakan kamera WAJIB: ${cameraMovement}.`;
   if (mood) userPrompt += ` Mood/pencahayaan: ${mood}.`;
+  if (enhancementBlock) userPrompt += enhancementBlock;
+  if (prohibitBlock) userPrompt += `\n\n${prohibitBlock}`;
   if (researchNote) {
     userPrompt += `\n\nHasil riset tren yang sudah dilakukan, jadikan dasar supaya konsepnya tidak pasaran:\n${researchNote}`;
   } else {
@@ -166,7 +203,7 @@ async function doGenerateVideo(model, { niche, style, mood, count, aspectRatio, 
   return ideas;
 }
 
-async function doGenerateVideoFromImage(model, image, { niche, style, mood, count, aspectRatio, cameraMovement, contentType, avoidList }) {
+async function doGenerateVideoFromImage(model, image, { niche, style, mood, count, aspectRatio, cameraMovement, contentType, avoidList, enhancementBlock, prohibitBlock }) {
   const systemPrompt =
     'Kamu adalah konsultan konten microstock VIDEO (Adobe Stock Footage) sekaligus penyusun prompt untuk Google Flow (Veo), khusus mode image-to-video. Kamu akan diberi SATU gambar. Tugasmu BUKAN membuat variasi gambar baru — tugasmu adalah membuat prompt yang menghidupkan gambar itu jadi video pendek dengan gerakan yang NATURAL dan MASUK AKAL sesuai konten gambar tsb (misalnya: kain/rambut bergoyang pelan, air mengalir, asap mengepul, awan bergerak, kamera drift halus, orang berkedip/bernapas halus, objek berputar pelan, dsb — sesuaikan dengan apa yang benar-benar ada di gambar). ' +
     'Untuk tiap konsep (kalau diminta lebih dari satu, buat variasi gerakan/kamera yang berbeda untuk gambar yang sama, bukan variasi visual gambarnya), berikan analisis singkat gaya riset pasar DAN prompt video yang detail. ' +
@@ -179,6 +216,8 @@ async function doGenerateVideoFromImage(model, image, { niche, style, mood, coun
   let userText = `Kategori/niche: "${niche}". Gaya visual: ${style}. Rasio aspek target: ${aspectRatio}. Tipe konten: ${contentTypeLabel(contentType)} — ${guidance} Buatkan ${count} variasi konsep untuk menghidupkan gambar terlampir jadi video.`;
   if (cameraMovement !== 'otomatis') userText += ` Gerakan kamera WAJIB: ${cameraMovement}.`;
   if (mood) userText += ` Mood/pencahayaan: ${mood}.`;
+  if (enhancementBlock) userText += enhancementBlock;
+  if (prohibitBlock) userText += `\n\n${prohibitBlock}`;
   if (avoidList && avoidList.length) {
     userText += `\n\nPENTING — daftar judul konsep video yang SUDAH PERNAH dibuat sebelumnya untuk kategori/niche yang sama:\n${avoidList.map((t) => `- ${t}`).join('\n')}\nWAJIB buat konsep baru yang juga berbeda dari daftar ini.`;
   }
@@ -223,6 +262,23 @@ export default function VideoPromptGenerator() {
   const [autoSave, setAutoSave] = useState(true);
   const [avoidDuplicates, setAvoidDuplicates] = useState(true);
 
+  // ============ FITUR BARU: Prompt Enhancement ============
+  const [lightingPreset, setLightingPreset] = useState('none');
+  const [lensPreset, setLensPreset] = useState('none');
+  const [filmPreset, setFilmPreset] = useState('none');
+  const [prohibitIds, setProhibitIds] = useState([]);
+  // Fitur 3: Motion Intensity Slider
+  const [motionLevel, setMotionLevel] = useState(3);
+
+  // ============ FITUR BARU: User Presets ============
+  const [userPresets, setUserPresets] = useState([]);
+  const [presetModalOpen, setPresetModalOpen] = useState(false);
+  const [presetName, setPresetName] = useState('');
+
+  // ============ FITUR BARU: Preview Mode & Refine ============
+  const [previewMode, setPreviewMode] = useState(false);
+  const [refiningId, setRefiningId] = useState(null);
+
   const [frames, setFrames] = useState([]);
   const [research, setResearch] = useState('');
   const [busy, setBusy] = useState(false);
@@ -246,6 +302,7 @@ export default function VideoPromptGenerator() {
       setVideoTotal(counts[HISTORY_KIND] || 0);
       setRisetTotal(counts[RISET_KIND] || 0);
     });
+    setUserPresets(listUserPresets('video'));
     return () => {
       cancelled = true;
     };
@@ -257,6 +314,104 @@ export default function VideoPromptGenerator() {
     } else {
       setUseCustomNiche(false);
       setNiche(value);
+    }
+  }
+
+  function handleProhibitToggle(id) {
+    setProhibitIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  // ============ FITUR 6: User Presets (Video) ============
+  function handleSavePreset() {
+    if (!presetName.trim()) {
+      alert('Berikan nama untuk preset ini');
+      return;
+    }
+    const config = {
+      niche: useCustomNiche ? nicheCustom : niche,
+      style,
+      aspectRatio,
+      cameraMovement,
+      contentType,
+      mood,
+      lightingPreset,
+      lensPreset,
+      filmPreset,
+      prohibitIds,
+      motionLevel,
+    };
+    const next = saveUserPreset('video', { name: presetName.trim(), config });
+    setUserPresets(next);
+    setPresetName('');
+    setPresetModalOpen(false);
+  }
+
+  function handleDeletePreset(name) {
+    const next = deleteUserPreset('video', name);
+    setUserPresets(next);
+  }
+
+  function handleLoadPreset(preset) {
+    const cfg = preset.config;
+    if (cfg.niche) {
+      if (NICHE_OPTIONS.some((o) => o.value === cfg.niche)) {
+        setUseCustomNiche(false);
+        setNiche(cfg.niche);
+      } else {
+        setUseCustomNiche(true);
+        setNicheCustom(cfg.niche);
+      }
+    }
+    if (cfg.style) setStyle(cfg.style);
+    if (cfg.aspectRatio) setAspectRatio(cfg.aspectRatio);
+    if (cfg.cameraMovement) setCameraMovement(cfg.cameraMovement);
+    if (cfg.contentType) setContentType(cfg.contentType);
+    if (cfg.mood) setMood(cfg.mood);
+    if (cfg.lightingPreset) setLightingPreset(cfg.lightingPreset);
+    if (cfg.lensPreset) setLensPreset(cfg.lensPreset);
+    if (cfg.filmPreset) setFilmPreset(cfg.filmPreset);
+    if (cfg.prohibitIds) setProhibitIds(cfg.prohibitIds);
+    if (cfg.motionLevel) setMotionLevel(cfg.motionLevel);
+  }
+
+  // ============ FITUR 4: Refine & Improve (Video) ============
+  async function refineFrame(frameId) {
+    const frame = frames.find((f) => f.id === frameId);
+    if (!frame) return;
+
+    setRefiningId(frameId);
+    setStatus(`Menyempurnakan prompt video "${frame.title}"…`);
+
+    try {
+      const refinePrompt = `Prompt video yang sudah ada:\n\n"${frame.prompt}"\n\nNegative prompt:\n"${frame.negative}"\n\nBuat versi yang lebih detail dan sinematik: perjelas tekstur permukaan, perkuat kontras pencahayaan, dan tambahkan detail gerakan yang lebih spesifik namun tetap natural. Tetap patuhi urutan: subjek & aksi, setting, gerakan kamera, pencahayaan, gaya, pacing. Balas HANYA dengan JSON object berisi keys: prompt, negative_prompt. Tanpa teks lain, tanpa markdown fence.`;
+
+      const data = await callClaude({
+        model,
+        messages: [{ role: 'user', content: refinePrompt }],
+        maxTokens: 2000,
+      });
+
+      const raw = extractText(data);
+      const refined = extractJsonBlock(raw);
+
+      setFrames((prev) =>
+        prev.map((f) =>
+          f.id === frameId
+            ? {
+                ...f,
+                prompt: String(refined.prompt || f.prompt).trim(),
+                negative: String(refined.negative_prompt || f.negative).trim(),
+              }
+            : f
+        )
+      );
+
+      setSessionCost((prev) => prev + estimateCost(model, 'videoGenerate', 1));
+      setTimeout(() => setStatus(''), 1000);
+    } catch (err) {
+      setError(`Gagal refine prompt video: ${err.message}`);
+    } finally {
+      setRefiningId(null);
     }
   }
 
@@ -287,6 +442,11 @@ export default function VideoPromptGenerator() {
   async function runGenerate() {
     setError('');
     const nicheVal = currentNiche;
+    
+    // Preview Mode override
+    const actualCount = previewMode ? 1 : count;
+    const actualModel = previewMode ? 'claude-haiku-4-5-20251001' : model;
+
     if (genMode === 'image' && !sourceImage) {
       setError('Upload gambar dulu.');
       return;
@@ -297,7 +457,7 @@ export default function VideoPromptGenerator() {
     }
       setBusy(true);
       setResearch('');
-      setProgress({ done: 0, total: count });
+      setProgress({ done: 0, total: actualCount });
       try {
       let avoidList = [];
       if (avoidDuplicates) {
@@ -315,22 +475,27 @@ export default function VideoPromptGenerator() {
 
       let researchNote = '';
       let ideas;
-      const opts = { niche: nicheVal, style, mood, count, aspectRatio, cameraMovement, contentType, avoidList };
+      
+      const enhancementBlock = buildEnhancementBlock(lightingPreset, lensPreset, filmPreset, motionLevel);
+      const prohibitBlock = buildProhibitBlock(prohibitIds);
+      
+      const opts = { niche: nicheVal, style, mood, count: actualCount, aspectRatio, cameraMovement, contentType, avoidList, enhancementBlock, prohibitBlock };
+      
       if (genMode === 'image') {
         setStatus(
           avoidList.length
-            ? `Menganalisis gambar & menyusun ${count} konsep video (menghindari ${avoidList.length} konsep lama)…`
-            : `Menganalisis gambar & menyusun ${count} konsep video…`
+            ? `Menganalisis gambar & menyusun ${actualCount} konsep video (menghindari ${avoidList.length} konsep lama)…`
+            : `Menganalisis gambar & menyusun ${actualCount} konsep video…`
         );
-        ideas = await doGenerateVideoFromImage(model, sourceImage, opts);
+        ideas = await doGenerateVideoFromImage(actualModel, sourceImage, opts);
       } else {
-        if (!modeHemat) {
+        if (!modeHemat && !previewMode) {
           setStatus('Meneliti tren video stok…');
-          researchNote = await doResearchVideo(model, nicheVal, style, contentType);
+          researchNote = await doResearchVideo(actualModel, nicheVal, style, contentType);
           if (researchNote) {
             setResearch(researchNote);
             setRisetTotal((t) => t + 1);
-            saveItem({ kind: RISET_KIND, title: nicheVal, model, data: { niche: nicheVal, style, research: researchNote } }).catch(() => {});
+            saveItem({ kind: RISET_KIND, title: nicheVal, model: actualModel, data: { niche: nicheVal, style, research: researchNote } }).catch(() => {});
           }
         }
         setStatus(
@@ -338,7 +503,7 @@ export default function VideoPromptGenerator() {
             ? `Menyusun prompt video baru (menghindari ${avoidList.length} konsep lama)…`
             : 'Menyusun prompt video & negative prompt…'
         );
-        ideas = await doGenerateVideo(model, { ...opts, researchNote });
+        ideas = await doGenerateVideo(actualModel, { ...opts, researchNote });
       }
 
       const newFrames = ideas.map((idea, i) => ({
@@ -355,21 +520,22 @@ export default function VideoPromptGenerator() {
         prompt: String(idea.prompt || '').trim(),
         negative: String(idea.negative_prompt || '').trim(),
         fromImage: genMode === 'image',
-        model,
+        model: actualModel,
       }));
       setFrames((prev) => [...prev, ...newFrames]);
       setVideoTotal((t) => t + newFrames.length);
-      setProgress({ done: count, total: count });
+      setProgress({ done: actualCount, total: actualCount });
       setTimeout(() => setProgress(null), 1200);
 
       let costThisRun = 0;
-      if (!modeHemat) costThisRun += estimateCost(model, 'videoResearch');
-      costThisRun += estimateCost(model, genMode === 'image' ? 'videoGenerateFromImage' : 'videoGenerate', count);
+      if (!modeHemat && !previewMode) costThisRun += estimateCost(actualModel, 'videoResearch');
+      costThisRun += estimateCost(actualModel, genMode === 'image' ? 'videoGenerateFromImage' : 'videoGenerate', actualCount);
       setSessionCost((prev) => prev + costThisRun);
 
-      if (autoSave) {
+      if (autoSave && !previewMode) {
         newFrames.forEach((f) => saveFrame(f));
       }
+      setPreviewMode(false);
     } catch (err) {
       setError(`Gagal memproses: ${err.message}. Coba tekan tombol generate lagi.`);
     } finally {
@@ -569,6 +735,23 @@ export default function VideoPromptGenerator() {
               </button>
             ))}
           </div>
+          {/* ============ FITUR 5: Aspect Ratio Previewer ============ */}
+          <div className="ratio-previewer">
+            <div
+              className={`ratio-box ${aspectRatio.replace(':', 'x')}`}
+              style={{
+                width: aspectRatio === '16:9' ? 96 : 54,
+                height: aspectRatio === '16:9' ? 54 : 96,
+              }}
+            >
+              <span>{aspectRatio}</span>
+            </div>
+            <span className="ratio-hint">
+              {aspectRatio === '16:9'
+                ? 'Horizontal · cocok untuk YouTube, TV, presentasi'
+                : 'Vertikal · cocok untuk Reels, TikTok, Shorts'}
+            </span>
+          </div>
           <div className="field-hint">Veo/Google Flow cuma mendukung dua rasio ini untuk output video.</div>
         </div>
 
@@ -599,6 +782,91 @@ export default function VideoPromptGenerator() {
           <input id="mood" type="text" value={mood} onChange={(e) => setMood(e.target.value)} placeholder="mis. cahaya keemasan sore hari, tenang" />
         </div>
 
+        {/* ============ FITUR 3: Motion Intensity Slider ============ */}
+        <div className="field">
+          <label>Intensitas Gerakan (Motion Intensity)</label>
+          <div className="count-row">
+            <input type="range" min="1" max="5" value={motionLevel} onChange={(e) => setMotionLevel(Number(e.target.value))} />
+            <span className="count-val">{motionLevel}</span>
+          </div>
+          <div className="field-hint">
+            {MOTION_INTENSITY_LEVELS.find((m) => m.level === motionLevel)?.label}
+          </div>
+        </div>
+
+        {/* ============ FITUR 1: Prompt Engineering Presets (Video) ============ */}
+        <div className="field">
+          <label>Lighting Preset (Pencahayaan Teknis)</label>
+          <div className="chip-row">
+            {LIGHTING_PRESETS.map((p) => (
+              <button key={p.id} type="button" className={'chip' + (lightingPreset === p.id ? ' active' : '')} onClick={() => setLightingPreset(p.id)}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="field">
+          <label>Camera Lens / Perspective Preset</label>
+          <div className="chip-row">
+            {LENS_PRESETS.map((p) => (
+              <button key={p.id} type="button" className={'chip' + (lensPreset === p.id ? ' active' : '')} onClick={() => setLensPreset(p.id)}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="field">
+          <label>Film Stock / Color Texture Preset</label>
+          <div className="chip-row">
+            {FILM_PRESETS.map((p) => (
+              <button key={p.id} type="button" className={'chip' + (filmPreset === p.id ? ' active' : '')} onClick={() => setFilmPreset(p.id)}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ============ FITUR 2: Negative Prompt Builder (Prohibit) Video ============ */}
+        <div className="field">
+          <label>Pencegahan Khusus Video (Negative Checklist)</label>
+          <div className="checkbox-grid">
+            {PROHIBIT_OPTIONS_VIDEO.map((p) => (
+              <label key={p.id} className="checkbox-row">
+                <input type="checkbox" checked={prohibitIds.includes(p.id)} onChange={() => handleProhibitToggle(p.id)} />
+                <span>{p.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* ============ FITUR 6: User Presets (Video) ============ */}
+        <div className="field preset-bar">
+          <div className="preset-bar-header">
+            <label className="field-label" style={{ margin: 0 }}>Preset Pengaturan Saya</label>
+            <button type="button" className="link-btn" onClick={() => setPresetModalOpen(true)}>
+              + Simpan Preset Baru
+            </button>
+          </div>
+          {userPresets.length > 0 ? (
+            <div className="chip-row" style={{ marginTop: 8 }}>
+              {userPresets.map((p) => (
+                <div key={p.name} className="user-preset-chip">
+                  <button type="button" className="chip" onClick={() => handleLoadPreset(p)}>
+                    📂 {p.name}
+                  </button>
+                  <button type="button" className="preset-del-btn" onClick={() => handleDeletePreset(p.name)} title="Hapus preset ini">
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="field-hint">Belum ada preset tersimpan. Atur form di atas lalu simpan sebagai preset andalanmu.</div>
+          )}
+        </div>
+
         <div className="field">
           <label>Jumlah konsep</label>
           <div className="count-row">
@@ -607,9 +875,50 @@ export default function VideoPromptGenerator() {
           </div>
         </div>
 
+        {/* Modal Simpan Preset */}
+        {presetModalOpen && (
+          <div className="modal-overlay open">
+            <div className="modal-panel" style={{ maxWidth: 400 }}>
+              <div className="modal-head">
+                <h3>Simpan Preset Video</h3>
+                <button className="link-btn" onClick={() => setPresetModalOpen(false)}>✕</button>
+              </div>
+              <div className="modal-body" style={{ padding: 18 }}>
+                <div className="field">
+                  <label>Nama Preset</label>
+                  <input
+                    type="text"
+                    placeholder="mis. Drone Golden Hour Landscape"
+                    value={presetName}
+                    onChange={(e) => setPresetName(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+              </div>
+              <div className="modal-foot">
+                <button className="btn-ghost" onClick={() => setPresetModalOpen(false)}>Batal</button>
+                <button className="btn-primary" onClick={handleSavePreset}>Simpan</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="btn-row" style={{ flexDirection: 'column' }}>
           <button className="btn-primary full" disabled={busy || (genMode === 'image' && (!sourceImage || imageBusy))} onClick={runGenerate}>
             {genMode === 'image' ? 'Buat prompt video dari gambar' : 'Riset & buatkan prompt video'}
+          </button>
+          
+          {/* ============ FITUR 7: Preview Mode (Video) ============ */}
+          <button
+            className="btn-ghost full"
+            style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}
+            disabled={busy || (genMode === 'image' && (!sourceImage || imageBusy))}
+            onClick={() => {
+              setPreviewMode(true);
+              runGenerate();
+            }}
+          >
+            ⚡ Preview 1 Konsep Cepat (Hemat Token Haiku)
           </button>
         </div>
       </div>
@@ -692,6 +1001,14 @@ export default function VideoPromptGenerator() {
                   <span className="prompt-copy-text">{combined}</span>
                 </div>
                 <div className="frame-actions">
+                  <button
+                    className="refine-btn"
+                    onClick={() => refineFrame(f.id)}
+                    disabled={refiningId === f.id}
+                    title="Buat prompt video ini lebih detail dan sinematik"
+                  >
+                    {refiningId === f.id ? 'Menyempurnakan…' : '✨ Sempurnakan (Refine)'}
+                  </button>
                   <button className={'save-btn' + (isSaved ? ' saved' : '')} onClick={() => saveFrame(f)} disabled={isSaved}>
                     {isSaved ? 'Tersimpan di DB' : 'Simpan ke DB'}
                   </button>

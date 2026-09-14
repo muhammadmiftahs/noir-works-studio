@@ -6,9 +6,15 @@ import HistoryPanel from './HistoryPanel';
 import NicheStats from './NicheStats';
 import { DEFAULT_MODEL_ID } from '../lib/models';
 import { callClaude, extractText, extractJsonBlock } from '../lib/claudeClient';
-import { saveItem, listItems, getCounts } from '../lib/savedItems';
+import { saveItem, listItems, getCounts, listUserPresets, saveUserPreset, deleteUserPreset } from '../lib/savedItems';
 import { readAsDataURL, resizeImageToBase64 } from '../lib/imageUtils';
 import { estimateCost, formatUsd } from '../lib/costTracker';
+import {
+  LIGHTING_PRESETS,
+  LENS_PRESETS,
+  FILM_PRESETS,
+  PROHIBIT_OPTIONS_IMAGE,
+} from '../lib/promptPresets';
 
 // Kind terpisah untuk catatan riset tren (beda dari kind "prompt"), supaya
 // bisa dihitung total-nya dari database tanpa campur dengan hasil prompt.
@@ -44,7 +50,32 @@ const BG_OPTIONS = [
   { value: 'campur otomatis', label: 'Campur otomatis' },
 ];
 
-const MAX_AVOID_TITLES = 40; // batas jumlah judul lama yang dikirim ke prompt, biar konteks tidak membengkak
+const MAX_AVOID_TITLES = 40;
+
+function buildEnhancementBlock(lightingId, lensId, filmId, prohibitIds) {
+  const blocks = [];
+  
+  const lighting = LIGHTING_PRESETS.find((p) => p.id === lightingId);
+  if (lighting?.prompt) blocks.push(`Lighting: ${lighting.prompt}`);
+  
+  const lens = LENS_PRESETS.find((p) => p.id === lensId);
+  if (lens?.prompt) blocks.push(`Lens: ${lens.prompt}`);
+  
+  const film = FILM_PRESETS.find((p) => p.id === filmId);
+  if (film?.prompt) blocks.push(`Film Stock: ${film.prompt}`);
+  
+  return blocks.length ? `\n\nTechnical Enhancements:\n${blocks.join('\n')}` : '';
+}
+
+function buildProhibitBlock(prohibitIds) {
+  const prohibited = prohibitIds
+    .map((id) => PROHIBIT_OPTIONS_IMAGE.find((p) => p.id === id))
+    .filter(Boolean)
+    .map((p) => p.negative)
+    .join(', ');
+  
+  return prohibited ? `Prohibit: ${prohibited}` : '';
+}
 
 function starsMarkup(value) {
   const rounded = Math.round(value * 2) / 2;
@@ -88,7 +119,7 @@ async function doResearch(model, niche, style, bgChoice) {
   return extractText(data);
 }
 
-async function doGenerate(model, niche, style, mood, count, bgChoice, researchNote, avoidList) {
+async function doGenerate(model, niche, style, mood, count, bgChoice, researchNote, avoidList, enhancementBlock, prohibitBlock) {
   const systemPrompt =
     'Kamu adalah konsultan konten microstock Adobe Stock sekaligus penyusun prompt image generation untuk Google Flow. Untuk tiap konsep, berikan analisis singkat gaya riset pasar (judul konsep, estimasi potensi jual, tingkat kompetisi, kegunaan komersial) DAN prompt gambar yang sangat detail dan lengkap. ' +
     'Ketentuan prompt gambar (field "prompt"): tulis dalam Bahasa Inggris, 4-7 kalimat, jelaskan secara konkret: subjek utama beserta detail bentuk/tekstur/material/pose, komposisi & sudut pandang, gaya visual sesuai yang diminta, pencahayaan spesifik, palet warna, latar belakang (ikuti instruksi latar yang diberikan), serta penutup berupa deskriptor kualitas komersial (misal "professional commercial illustration/photography, highly detailed, sharp focus, clean composition"). Jangan sertakan merek, logo, karakter berhak cipta, wajah tokoh publik, atau teks yang harus terbaca jelas di gambar. ' +
@@ -110,6 +141,8 @@ async function doGenerate(model, niche, style, mood, count, bgChoice, researchNo
 
   let userPrompt = `Buatkan ${count} ide konsep + prompt gambar berbeda untuk kategori: "${niche}". Gaya visual: ${style}. ${bgInstruction}`;
   if (mood) userPrompt += ` Mood/pencahayaan: ${mood}.`;
+  if (enhancementBlock) userPrompt += enhancementBlock;
+  if (prohibitBlock) userPrompt += `\n\n${prohibitBlock}`;
   if (researchNote) {
     userPrompt += `\n\nHasil riset tren yang sudah dilakukan, gunakan ini sebagai dasar supaya konsepnya tidak pasaran dan rating potensi/kompetisi konsisten dengan temuan ini:\n${researchNote}`;
   } else {
@@ -133,7 +166,7 @@ async function doGenerate(model, niche, style, mood, count, bgChoice, researchNo
   return ideas;
 }
 
-async function doGenerateFromImage(model, image, niche, style, mood, count, bgChoice, avoidList) {
+async function doGenerateFromImage(model, image, niche, style, mood, count, bgChoice, avoidList, enhancementBlock, prohibitBlock) {
   const systemPrompt =
     'Kamu adalah konsultan konten microstock Adobe Stock sekaligus penyusun prompt image generation untuk Google Flow. Kamu akan diberi SATU gambar referensi. ' +
     'ATURAN PALING PENTING: jangan mendeskripsikan ulang gambar itu apa adanya secara persis — itu akan menghasilkan gambar yang nyaris identik dan berisiko kena tolak similarity check di Adobe Stock. Tugasmu adalah membuat konsep BARU yang terinspirasi dari gaya visual, mood, palet warna, dan/atau komposisi gambar itu, TAPI dengan perubahan nyata dan disengaja pada beberapa elemen kunci untuk tiap konsep — misalnya: pose/sudut pandang subjek, arah pencahayaan, detail latar belakang, kombinasi warna, aksesori/objek pendukung, ekspresi, waktu, atau elemen komposisi lain. Tujuannya supaya hasil akhirnya tetap terasa "senada"/terinspirasi tapi CUKUP BERBEDA secara visual dari gambar sumber. ' +
@@ -154,6 +187,8 @@ async function doGenerateFromImage(model, image, niche, style, mood, count, bgCh
 
   let userText = `Kategori/niche: "${niche}". Gaya visual yang diinginkan: ${style}. ${bgInstruction} Buatkan ${count} konsep baru yang terinspirasi dari gambar terlampir, dengan perbedaan nyata di beberapa elemen kunci seperti dijelaskan di instruksi sistem — jangan sampai ada dua konsep yang perbedaannya cuma di satu elemen kecil yang sama.`;
   if (mood) userText += ` Mood/pencahayaan: ${mood}.`;
+  if (enhancementBlock) userText += enhancementBlock;
+  if (prohibitBlock) userText += `\n\n${prohibitBlock}`;
   if (avoidList && avoidList.length) {
     userText += `\n\nPENTING — daftar judul konsep yang SUDAH PERNAH dibuat sebelumnya untuk kategori/niche yang sama (tersimpan di riwayat database aplikasi ini):\n${avoidList
       .map((t) => `- ${t}`)
@@ -182,8 +217,8 @@ async function doGenerateFromImage(model, image, niche, style, mood, count, bgCh
 
 export default function PromptGenerator() {
   const [model, setModel] = useState(DEFAULT_MODEL_ID);
-  const [genMode, setGenMode] = useState('text'); // 'text' | 'image'
-  const [sourceImage, setSourceImage] = useState(null); // { thumb, base64, mediaType, filename }
+  const [genMode, setGenMode] = useState('text');
+  const [sourceImage, setSourceImage] = useState(null);
   const [imageBusy, setImageBusy] = useState(false);
   const imageInputRef = useRef(null);
   const [niche, setNiche] = useState('');
@@ -196,6 +231,23 @@ export default function PromptGenerator() {
   const [modeHemat, setModeHemat] = useState(false);
   const [autoSave, setAutoSave] = useState(true);
   const [avoidDuplicates, setAvoidDuplicates] = useState(true);
+
+  // ============ FITUR BARU: Prompt Enhancement ============
+  const [lightingPreset, setLightingPreset] = useState('none');
+  const [lensPreset, setLensPreset] = useState('none');
+  const [filmPreset, setFilmPreset] = useState('none');
+  const [prohibitIds, setProhibitIds] = useState([]);
+
+  // ============ FITUR BARU: User Presets ============
+  const [userPresets, setUserPresets] = useState([]);
+  const [presetModalOpen, setPresetModalOpen] = useState(false);
+  const [presetName, setPresetName] = useState('');
+
+  // ============ FITUR BARU: Preview Mode ============
+  const [previewMode, setPreviewMode] = useState(false);
+
+  // ============ FITUR BARU: Refine Frame ============
+  const [refiningId, setRefiningId] = useState(null);
 
   const [frames, setFrames] = useState([]);
   const [research, setResearch] = useState('');
@@ -211,10 +263,6 @@ export default function PromptGenerator() {
 
   const currentNiche = useMemo(() => (useCustomNiche ? nicheCustom.trim() : niche), [useCustomNiche, nicheCustom, niche]);
 
-  // Muat total prompt & riset yang PERNAH dibuat (dari database), sekali saat
-  // komponen ini pertama kali tampil — supaya angkanya tidak balik ke 0 tiap
-  // refresh halaman. Angka ini lalu ditambah lokal tiap kali generate baru,
-  // biar tidak perlu fetch ulang ke database di setiap klik.
   useEffect(() => {
     let cancelled = false;
     getCounts().then((counts) => {
@@ -222,6 +270,9 @@ export default function PromptGenerator() {
       setPromptTotal(counts.prompt || 0);
       setRisetTotal(counts.riset || 0);
     });
+    // Load user presets saat komponen mount
+    const presets = listUserPresets('image');
+    setUserPresets(presets);
     return () => {
       cancelled = true;
     };
@@ -233,6 +284,103 @@ export default function PromptGenerator() {
     } else {
       setUseCustomNiche(false);
       setNiche(value);
+    }
+  }
+
+  function handleProhibitToggle(id) {
+    setProhibitIds((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((x) => x !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
+  }
+
+  function handleSavePreset() {
+    if (!presetName.trim()) {
+      alert('Berikan nama untuk preset ini');
+      return;
+    }
+    const config = {
+      niche: useCustomNiche ? nicheCustom : niche,
+      style,
+      bg,
+      mood,
+      lightingPreset,
+      lensPreset,
+      filmPreset,
+      prohibitIds,
+    };
+    const next = saveUserPreset('image', { name: presetName.trim(), config });
+    setUserPresets(next);
+    setPresetName('');
+    setPresetModalOpen(false);
+  }
+
+  function handleDeletePreset(name) {
+    const next = deleteUserPreset('image', name);
+    setUserPresets(next);
+  }
+
+  function handleLoadPreset(preset) {
+    const cfg = preset.config;
+    if (cfg.niche) {
+      if (NICHE_OPTIONS.some((o) => o.value === cfg.niche)) {
+        setUseCustomNiche(false);
+        setNiche(cfg.niche);
+      } else {
+        setUseCustomNiche(true);
+        setNicheCustom(cfg.niche);
+      }
+    }
+    if (cfg.style) setStyle(cfg.style);
+    if (cfg.bg) setBg(cfg.bg);
+    if (cfg.mood) setMood(cfg.mood);
+    if (cfg.lightingPreset) setLightingPreset(cfg.lightingPreset);
+    if (cfg.lensPreset) setLensPreset(cfg.lensPreset);
+    if (cfg.filmPreset) setFilmPreset(cfg.filmPreset);
+    if (cfg.prohibitIds) setProhibitIds(cfg.prohibitIds);
+  }
+
+  async function refineFrame(frameId) {
+    const frame = frames.find((f) => f.id === frameId);
+    if (!frame) return;
+    
+    setRefiningId(frameId);
+    setStatus(`Menyempurnakan prompt "${frame.title}"…`);
+    
+    try {
+      const refinePrompt = `Prompt yang sudah ada:\n\n"${frame.prompt}"\n\nNegative prompt:\n"${frame.negative}"\n\nSekarang buat versi yang lebih detail, dengan elemen tekstur lebih kuat, pencahayaan lebih kontras, dan detail subjek lebih spesifik. Balas HANYA dengan JSON object berisi keys: prompt, negative_prompt. Tanpa teks lain, tanpa markdown fence.`;
+      
+      const data = await callClaude({
+        model,
+        messages: [{ role: 'user', content: refinePrompt }],
+        maxTokens: 2000,
+      });
+      
+      const raw = extractText(data);
+      const refined = extractJsonBlock(raw);
+      
+      setFrames((prev) =>
+        prev.map((f) =>
+          f.id === frameId
+            ? {
+                ...f,
+                prompt: String(refined.prompt || f.prompt).trim(),
+                negative: String(refined.negative_prompt || f.negative).trim(),
+              }
+            : f
+        )
+      );
+      
+      setSessionCost((prev) => prev + estimateCost(model, 'generate', 1));
+      
+      setTimeout(() => setStatus(''), 1000);
+    } catch (err) {
+      setError(`Gagal refine prompt: ${err.message}`);
+    } finally {
+      setRefiningId(null);
     }
   }
 
@@ -278,6 +426,11 @@ export default function PromptGenerator() {
     const styleVal = overrides.style !== undefined ? overrides.style : style;
     const bgVal = overrides.bg !== undefined ? overrides.bg : bg;
     const moodVal = overrides.mood !== undefined ? overrides.mood : mood;
+    
+    // Preview Mode override
+    const actualCount = previewMode ? 1 : count;
+    const actualModel = previewMode ? 'claude-haiku-4-5-20251001' : model;
+
     if (genMode === 'image' && !sourceImage) {
       setError('Upload gambar referensi dulu.');
       return;
@@ -288,7 +441,7 @@ export default function PromptGenerator() {
     }
       setBusy(true);
       setResearch('');
-      setProgress({ done: 0, total: count });
+      setProgress({ done: 0, total: actualCount });
       try {
       let avoidList = [];
       if (avoidDuplicates) {
@@ -300,29 +453,31 @@ export default function PromptGenerator() {
             .filter(Boolean)
             .slice(0, MAX_AVOID_TITLES);
         } catch (e) {
-          // Database belum diset / gagal diakses — lanjutkan generate tanpa daftar anti-duplikat,
-          // jangan sampai fitur ini memblokir generate normal.
           avoidList = [];
         }
       }
 
       let researchNote = '';
       let ideas;
+      
+      const enhancementBlock = buildEnhancementBlock(lightingPreset, lensPreset, filmPreset);
+      const prohibitBlock = buildProhibitBlock(prohibitIds);
+
       if (genMode === 'image') {
         setStatus(
           avoidList.length
-            ? `Menganalisis gambar & menyusun ${count} konsep baru (menghindari ${avoidList.length} konsep lama)…`
-            : `Menganalisis gambar & menyusun ${count} konsep baru…`
+            ? `Menganalisis gambar & menyusun ${actualCount} konsep baru (menghindari ${avoidList.length} konsep lama)…`
+            : `Menganalisis gambar & menyusun ${actualCount} konsep baru…`
         );
-        ideas = await doGenerateFromImage(model, sourceImage, nicheVal, styleVal, moodVal, count, bgVal, avoidList);
+        ideas = await doGenerateFromImage(actualModel, sourceImage, nicheVal, styleVal, moodVal, actualCount, bgVal, avoidList, enhancementBlock, prohibitBlock);
       } else {
-        if (!modeHemat) {
+        if (!modeHemat && !previewMode) {
           setStatus('Meneliti tren & celah pasar Adobe Stock…');
-          researchNote = await doResearch(model, nicheVal, styleVal, bgVal);
+          researchNote = await doResearch(actualModel, nicheVal, styleVal, bgVal);
           if (researchNote) {
             setResearch(researchNote);
             setRisetTotal((t) => t + 1);
-            saveItem({ kind: RISET_KIND, title: nicheVal, model, data: { niche: nicheVal, style: styleVal, research: researchNote } }).catch(() => {});
+            saveItem({ kind: RISET_KIND, title: nicheVal, model: actualModel, data: { niche: nicheVal, style: styleVal, research: researchNote } }).catch(() => {});
           }
         }
         setStatus(
@@ -330,7 +485,7 @@ export default function PromptGenerator() {
             ? `Menyusun prompt baru (menghindari ${avoidList.length} konsep lama untuk niche ini)…`
             : 'Menyusun prompt detail & negative prompt…'
         );
-        ideas = await doGenerate(model, nicheVal, styleVal, moodVal, count, bgVal, researchNote, avoidList);
+        ideas = await doGenerate(actualModel, nicheVal, styleVal, moodVal, actualCount, bgVal, researchNote, avoidList, enhancementBlock, prohibitBlock);
       }
       const newFrames = ideas.map((idea, i) => ({
         id: `${Date.now()}-${i}`,
@@ -345,21 +500,22 @@ export default function PromptGenerator() {
         negative: String(idea.negative_prompt || '').trim(),
         diffNote: genMode === 'image' ? String(idea.diff_note || '').trim() : '',
         fromImage: genMode === 'image',
-        model,
+        model: actualModel,
       }));
       setFrames((prev) => [...prev, ...newFrames]);
       setPromptTotal((t) => t + newFrames.length);
-      setProgress({ done: count, total: count });
+      setProgress({ done: actualCount, total: actualCount });
       setTimeout(() => setProgress(null), 1200);
       
       let costThisRun = 0;
-      if (!modeHemat) costThisRun += estimateCost(model, 'research');
-      costThisRun += estimateCost(model, genMode === 'image' ? 'generateFromImage' : 'generate', count);
+      if (!modeHemat && !previewMode) costThisRun += estimateCost(actualModel, 'research');
+      costThisRun += estimateCost(actualModel, genMode === 'image' ? 'generateFromImage' : 'generate', actualCount);
       setSessionCost((prev) => prev + costThisRun);
       
-      if (autoSave) {
+      if (autoSave && !previewMode) {
         newFrames.forEach((f) => saveFrame(f));
       }
+      setPreviewMode(false);
     } catch (err) {
       setError(`Gagal memproses: ${err.message}. Coba tekan tombol generate lagi.`);
     } finally {
@@ -370,6 +526,7 @@ export default function PromptGenerator() {
 
   function handleSurprise() {
     const overrides = randomizeInputs();
+    setPreviewMode(false);
     runGenerate(overrides);
   }
 
@@ -565,6 +722,79 @@ export default function PromptGenerator() {
           <input id="mood" type="text" value={mood} onChange={(e) => setMood(e.target.value)} placeholder="mis. cahaya keemasan sore hari, tenang" />
         </div>
 
+        {/* ============ FITUR 1: Prompt Engineering Presets ============ */}
+        <div className="field">
+          <label>Lighting Preset (Pencahayaan Teknis)</label>
+          <div className="chip-row">
+            {LIGHTING_PRESETS.map((p) => (
+              <button key={p.id} type="button" className={'chip' + (lightingPreset === p.id ? ' active' : '')} onClick={() => setLightingPreset(p.id)}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="field">
+          <label>Camera Lens / Perspective Preset</label>
+          <div className="chip-row">
+            {LENS_PRESETS.map((p) => (
+              <button key={p.id} type="button" className={'chip' + (lensPreset === p.id ? ' active' : '')} onClick={() => setLensPreset(p.id)}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="field">
+          <label>Film Stock / Color Texture Preset</label>
+          <div className="chip-row">
+            {FILM_PRESETS.map((p) => (
+              <button key={p.id} type="button" className={'chip' + (filmPreset === p.id ? ' active' : '')} onClick={() => setFilmPreset(p.id)}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ============ FITUR 2: Negative Prompt Builder (Prohibit) ============ */}
+        <div className="field">
+          <label>Pencegahan Khusus (Negative Checklist)</label>
+          <div className="checkbox-grid">
+            {PROHIBIT_OPTIONS_IMAGE.map((p) => (
+              <label key={p.id} className="checkbox-row">
+                <input type="checkbox" checked={prohibitIds.includes(p.id)} onChange={() => handleProhibitToggle(p.id)} />
+                <span>{p.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* ============ FITUR 6: User Presets (Save/Load) ============ */}
+        <div className="field preset-bar">
+          <div className="preset-bar-header">
+            <label className="field-label" style={{ margin: 0 }}>Preset Pengaturan Saya</label>
+            <button type="button" className="link-btn" onClick={() => setPresetModalOpen(true)}>
+              + Simpan Preset Baru
+            </button>
+          </div>
+          {userPresets.length > 0 ? (
+            <div className="chip-row" style={{ marginTop: 8 }}>
+              {userPresets.map((p) => (
+                <div key={p.name} className="user-preset-chip">
+                  <button type="button" className="chip" onClick={() => handleLoadPreset(p)}>
+                    📂 {p.name}
+                  </button>
+                  <button type="button" className="preset-del-btn" onClick={() => handleDeletePreset(p.name)} title="Hapus preset ini">
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="field-hint">Belum ada preset tersimpan. Atur form di atas lalu simpan sebagai preset andalanmu.</div>
+          )}
+        </div>
+
         <div className="field">
           <label>Jumlah prompt</label>
           <div className="count-row">
@@ -572,6 +802,34 @@ export default function PromptGenerator() {
             <span className="count-val">{count}</span>
           </div>
         </div>
+
+        {/* Modal Simpan Preset */}
+        {presetModalOpen && (
+          <div className="modal-overlay open">
+            <div className="modal-panel" style={{ maxWidth: 400 }}>
+              <div className="modal-head">
+                <h3>Simpan Preset Pengaturan</h3>
+                <button className="link-btn" onClick={() => setPresetModalOpen(false)}>✕</button>
+              </div>
+              <div className="modal-body" style={{ padding: 18 }}>
+                <div className="field">
+                  <label>Nama Preset</label>
+                  <input
+                    type="text"
+                    placeholder="mis. Wedding Portra Softbox"
+                    value={presetName}
+                    onChange={(e) => setPresetName(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+              </div>
+              <div className="modal-foot">
+                <button className="btn-ghost" onClick={() => setPresetModalOpen(false)}>Batal</button>
+                <button className="btn-primary" onClick={handleSavePreset}>Simpan</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="btn-row" style={{ flexDirection: 'column' }}>
           <button
@@ -581,6 +839,20 @@ export default function PromptGenerator() {
           >
             {genMode === 'image' ? 'Buat konsep dari gambar' : 'Riset & buatkan prompt'}
           </button>
+          
+          {/* ============ FITUR 7: Preview Mode (Single Concept with Haiku) ============ */}
+          <button
+            className="btn-ghost full"
+            style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}
+            disabled={busy || (genMode === 'image' && (!sourceImage || imageBusy))}
+            onClick={() => {
+              setPreviewMode(true);
+              runGenerate();
+            }}
+          >
+            ⚡ Preview 1 Konsep Cepat (Hemat Token Haiku)
+          </button>
+
           {genMode === 'text' && (
             <button className="btn-ghost full" disabled={busy} onClick={handleSurprise}>
               Kejutkan saya (acak)
@@ -678,6 +950,14 @@ export default function PromptGenerator() {
                   <span className="prompt-copy-text">{combined}</span>
                 </div>
                 <div className="frame-actions">
+                  <button
+                    className="refine-btn"
+                    onClick={() => refineFrame(f.id)}
+                    disabled={refiningId === f.id}
+                    title="Buat prompt ini lebih detail dan dramatis"
+                  >
+                    {refiningId === f.id ? 'Menyempurnakan…' : '✨ Sempurnakan (Refine)'}
+                  </button>
                   <button className={'save-btn' + (isSaved ? ' saved' : '')} onClick={() => saveFrame(f)} disabled={isSaved}>
                     {isSaved ? 'Tersimpan di DB' : 'Simpan ke DB'}
                   </button>
