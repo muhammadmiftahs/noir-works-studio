@@ -14,6 +14,7 @@ function formatBytes(bytes) {
 export default function StatusBar() {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const [anthropicTest, setAnthropicTest] = useState({ state: 'idle', message: '' });
   const [geminiTest, setGeminiTest] = useState({ state: 'idle', message: '' });
   const [anthropicTestBusy, setAnthropicTestBusy] = useState(false);
@@ -36,9 +37,6 @@ export default function StatusBar() {
     loadStatus();
   }, [loadStatus]);
 
-  // Tes koneksi Anthropic yang SESUNGGUHNYA (bukan cuma cek env var) — ini
-  // memanggil model beneran dan memakan sedikit token/biaya, makanya dibuat
-  // manual (tombol), tidak otomatis jalan tiap kali halaman dibuka.
   async function testAnthropic() {
     setAnthropicTestBusy(true);
     setAnthropicTest({ state: 'testing', message: '' });
@@ -57,8 +55,6 @@ export default function StatusBar() {
     }
   }
 
-  // Tes koneksi Gemini — sama seperti Anthropic, ini memanggil API beneran
-  // untuk verifikasi key valid dan bisa generate.
   async function testGemini() {
     setGeminiTestBusy(true);
     setGeminiTest({ state: 'testing', message: '' });
@@ -77,101 +73,89 @@ export default function StatusBar() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="status-bar">
-        <span className="status-chip status-chip-neutral">Memeriksa status sistem…</span>
-      </div>
-    );
+  // Determine dot colors and detail text
+  let dbDot = 'neutral', dbDetail = 'Database: memuat…';
+  if (status) {
+    if (!status.database.configured) { dbDot = 'error'; dbDetail = 'Database: belum diset'; }
+    else if (!status.database.connected) { dbDot = 'error'; dbDetail = `Database: gagal terhubung${status.database.error ? ' — ' + status.database.error : ''}`; }
+    else { dbDot = 'ok'; dbDetail = `Database: terhubung · ${formatBytes(status.database.sizeBytes)} terpakai`; }
   }
 
-  if (!status) {
-    return (
-      <div className="status-bar">
-        <span className="status-chip status-chip-error">Gagal memuat status sistem</span>
-        <button className="status-refresh-btn" onClick={loadStatus} title="Coba lagi">⟳</button>
-      </div>
-    );
+  let anthropicDot = 'neutral', anthropicDetail = 'Anthropic: memuat…';
+  if (status) {
+    if (!status.anthropicConfigured) { anthropicDot = 'error'; anthropicDetail = 'Anthropic API: belum diset'; }
+    else if (anthropicTest.state === 'ok') { anthropicDot = 'ok'; anthropicDetail = 'Anthropic API: terverifikasi ✓'; }
+    else if (anthropicTest.state === 'error') { anthropicDot = 'error'; anthropicDetail = `Anthropic API: gagal — ${anthropicTest.message}`; }
+    else if (anthropicTest.state === 'testing') { anthropicDot = 'neutral'; anthropicDetail = 'Anthropic API: menguji…'; }
+    else { anthropicDot = 'warn'; anthropicDetail = 'Anthropic API: sudah diset (belum dites)'; }
   }
 
-  let dbCls, dbText, dbShortText;
-  if (!status.database.configured) {
-    dbCls = 'status-chip-error';
-    dbText = 'Database: belum diset';
-    dbShortText = 'DB: ✗ belum diset';
-  } else if (!status.database.connected) {
-    dbCls = 'status-chip-error';
-    dbText = `Database: gagal terhubung${status.database.error ? ' — ' + status.database.error : ''}`;
-    dbShortText = 'DB: ✗ gagal';
-  } else {
-    dbCls = 'status-chip-ok';
-    dbText = `Database: terhubung · ${formatBytes(status.database.sizeBytes)} terpakai`;
-    dbShortText = `DB: ✓ ${formatBytes(status.database.sizeBytes)}`;
-  }
-
-  let anthropicCls, anthropicText;
-  if (!status.anthropicConfigured) {
-    anthropicCls = 'status-chip-error';
-    anthropicText = 'Anthropic: belum diset';
-  } else if (anthropicTest.state === 'ok') {
-    anthropicCls = 'status-chip-ok';
-    anthropicText = 'Anthropic: ✓ OK';
-  } else if (anthropicTest.state === 'error') {
-    anthropicCls = 'status-chip-error';
-    anthropicText = `Anthropic: ✗ ${anthropicTest.message}`;
-  } else if (anthropicTest.state === 'testing') {
-    anthropicCls = 'status-chip-neutral';
-    anthropicText = 'Anthropic: menguji…';
-  } else {
-    anthropicCls = 'status-chip-warning';
-    anthropicText = 'Anthropic: ⚠ belum ditest';
-  }
-
-  let geminiCls, geminiText;
-  if (!status.geminiConfigured) {
-    geminiCls = 'status-chip-error';
-    geminiText = 'Gemini: belum diset';
-  } else if (geminiTest.state === 'ok') {
-    geminiCls = 'status-chip-ok';
-    geminiText = 'Gemini: ✓ OK';
-  } else if (geminiTest.state === 'error') {
-    geminiCls = 'status-chip-error';
-    geminiText = `Gemini: ✗ ${geminiTest.message}`;
-  } else if (geminiTest.state === 'testing') {
-    geminiCls = 'status-chip-neutral';
-    geminiText = 'Gemini: menguji…';
-  } else {
-    geminiCls = 'status-chip-warning';
-    geminiText = 'Gemini: ⚠ belum ditest';
+  let geminiDot = 'neutral', geminiDetail = 'Gemini: memuat…';
+  if (status) {
+    if (!status.geminiConfigured) { geminiDot = 'error'; geminiDetail = 'Gemini API: belum diset'; }
+    else if (geminiTest.state === 'ok') { geminiDot = 'ok'; geminiDetail = 'Gemini API: terverifikasi ✓'; }
+    else if (geminiTest.state === 'error') { geminiDot = 'error'; geminiDetail = `Gemini API: gagal — ${geminiTest.message}`; }
+    else if (geminiTest.state === 'testing') { geminiDot = 'neutral'; geminiDetail = 'Gemini API: menguji…'; }
+    else { geminiDot = 'warn'; geminiDetail = 'Gemini API: sudah diset (belum dites)'; }
   }
 
   return (
-    <div className="status-bar">
-      <div className="status-bar-top">
-        <span className={`status-chip ${dbCls}`}>
-          <span className="status-text-full">{dbText}</span>
-          <span className="status-text-short">{dbShortText}</span>
-        </span>
-        <button className="status-refresh-btn" onClick={loadStatus} title="Refresh status">⟳</button>
-      </div>
-      <div className="status-bar-middle">
-        <div className="status-bar-group">
-          <span className={`status-chip ${anthropicCls}`}>{anthropicText}</span>
-          {status.anthropicConfigured && anthropicTest.state !== 'ok' && (
-            <button className="status-test-btn" onClick={testAnthropic} disabled={anthropicTestBusy}>
-              {anthropicTestBusy ? '…' : 'Test'}
-            </button>
-          )}
+    <div className="status-compact">
+      {/* Compact always-visible row: dots only */}
+      <button
+        className="status-compact-btn"
+        onClick={() => setExpanded((v) => !v)}
+        title="Klik untuk detail status sistem"
+      >
+        <span className={`status-dot dot-ok-${dbDot === 'ok'}`} style={{ background: dotColor(dbDot) }}></span>
+        <span className={`status-dot`} style={{ background: dotColor(anthropicDot) }}></span>
+        <span className={`status-dot`} style={{ background: dotColor(geminiDot) }}></span>
+        <span className="status-compact-label">STATUS</span>
+        <span className="status-compact-caret">{expanded ? '▴' : '▾'}</span>
+      </button>
+
+      {/* Expanded detail dropdown */}
+      {expanded && (
+        <div className="status-compact-dropdown">
+          <div className="status-row-detail">
+            <span className={`status-dot`} style={{ background: dotColor(dbDot) }}></span>
+            <span>{dbDetail}</span>
+            <button className="status-refresh-btn" onClick={loadStatus} title="Refresh status">⟳</button>
+          </div>
+          <div className="status-row-detail">
+            <span className={`status-dot`} style={{ background: dotColor(anthropicDot) }}></span>
+            <span>{anthropicDetail}</span>
+            {status?.anthropicConfigured && anthropicTest.state !== 'ok' && (
+              <button className="status-test-btn" onClick={testAnthropic} disabled={anthropicTestBusy}>
+                {anthropicTestBusy ? '…' : 'Test'}
+              </button>
+            )}
+          </div>
+          <div className="status-row-detail">
+            <span className={`status-dot`} style={{ background: dotColor(geminiDot) }}></span>
+            <span>{geminiDetail}</span>
+            {status?.geminiConfigured && geminiTest.state !== 'ok' && (
+              <button className="status-test-btn" onClick={testGemini} disabled={geminiTestBusy}>
+                {geminiTestBusy ? '…' : 'Test'}
+              </button>
+            )}
+          </div>
+          <div className="status-legend">
+            <span><i className="status-dot" style={{ background: dotColor('ok') }}></i> OK</span>
+            <span><i className="status-dot" style={{ background: dotColor('warn') }}></i> Belum dites</span>
+            <span><i className="status-dot" style={{ background: dotColor('error') }}></i> Gagal/Belum diset</span>
+          </div>
         </div>
-        <div className="status-bar-group">
-          <span className={`status-chip ${geminiCls}`}>{geminiText}</span>
-          {status.geminiConfigured && geminiTest.state !== 'ok' && (
-            <button className="status-test-btn" onClick={testGemini} disabled={geminiTestBusy}>
-              {geminiTestBusy ? '…' : 'Test'}
-            </button>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
+}
+
+function dotColor(kind) {
+  switch (kind) {
+    case 'ok': return '#7fcf9e';
+    case 'warn': return '#f2b134';
+    case 'error': return '#e3384f';
+    default: return '#8a8a8e';
+  }
 }

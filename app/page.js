@@ -11,11 +11,11 @@ import StatusBar from '../components/StatusBar';
 import ThemeToggle from '../components/ThemeToggle';
 
 const TABS = [
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'prompt', label: 'Prompt' },
-  { id: 'video', label: 'Video' },
-  { id: 'metadata', label: 'Metadata' },
-  { id: 'image2prompt', label: 'Image→Prompt' },
+  { id: 'dashboard', label: 'Dashboard', short: 'Home' },
+  { id: 'prompt', label: 'Prompt Generator', short: 'Prompt' },
+  { id: 'video', label: 'Video Prompt', short: 'Video' },
+  { id: 'metadata', label: 'Metadata', short: 'Meta' },
+  { id: 'image2prompt', label: 'Image-to-Prompt', short: 'Image' },
 ];
 
 export default function Home() {
@@ -30,55 +30,57 @@ export default function Home() {
 
   return (
     <div className="wrap">
-      {/* ============ STICKY NAVBAR ============ */}
-      <div className="sticky-navbar">
+      {/* ============ COMPACT STICKY NAVBAR ============ */}
+      <header className="sticky-navbar">
         <div className="navbar-inner">
-          {/* Logo */}
-          <div className="navbar-logo">
-            <div className="eyebrow">CASE FILE</div>
-            <h1 className="title">
-              NO<span className="accent">Ï</span>R
-            </h1>
+          {/* Logo mini */}
+          <div className="navbar-logo-compact" title="Noïr Works Studio">
+            NO<span className="accent">Ï</span>R
           </div>
 
-          {/* Status Bar di tengah */}
-          <div className="navbar-status">
-            <StatusBar />
-          </div>
+          {/* Status compact */}
+          <StatusBar />
 
-          {/* Logout & Theme */}
+          {/* Icon actions */}
           <div className="navbar-actions">
             <ThemeToggle />
-            <button className="btn-ghost logout-btn" onClick={handleLogout} title="Keluar dari aplikasi ini">
-              Keluar
+            <button
+              className="navbar-icon-btn"
+              onClick={handleLogout}
+              title="Keluar dari aplikasi"
+              aria-label="Keluar"
+            >
+              ⏻
             </button>
           </div>
         </div>
 
-        {/* Tab Switcher di bawah logo */}
-        <div className="navbar-tabs">
-          <div className="tabs tabs-scroll">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                className={'tab-btn' + (tab === t.id ? ' active' : '')}
-                onClick={() => setTab(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+        {/* Tab segments — compact */}
+        <nav className="navbar-tabs-compact" role="tablist">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              className={'nav-seg' + (tab === t.id ? ' active' : '')}
+              onClick={() => setTab(t.id)}
+              title={t.label}
+            >
+              <span className="nav-seg-full">{t.label}</span>
+              <span className="nav-seg-short">{t.short}</span>
+            </button>
+          ))}
+        </nav>
+      </header>
 
       {/* ============ KONTEN UTAMA ============ */}
-      <div className="main-content">
+      <main className="main-content">
         {tab === 'dashboard' && <Dashboard />}
         {tab === 'prompt' && <PromptGenerator />}
         {tab === 'video' && <VideoPromptGenerator />}
         {tab === 'metadata' && <MetadataGenerator />}
         {tab === 'image2prompt' && <ImageToPrompt />}
-      </div>
+      </main>
     </div>
   );
 }

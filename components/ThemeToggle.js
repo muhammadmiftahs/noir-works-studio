@@ -8,19 +8,11 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      style={{
-        background: 'none',
-        border: '1px solid var(--line)',
-        color: 'var(--muted)',
-        padding: '8px 14px',
-        borderRadius: 3,
-        fontSize: 11,
-        cursor: 'pointer',
-        fontFamily: 'IBM Plex Mono, monospace',
-      }}
+      className="navbar-icon-btn"
       title={`Ganti ke mode ${theme === 'dark' ? 'light' : 'dark'}`}
+      aria-label="Ganti tema"
     >
-      {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
+      {theme === 'dark' ? '☀️' : '🌙'}
     </button>
   );
 }
