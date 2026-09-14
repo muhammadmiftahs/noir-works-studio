@@ -344,6 +344,16 @@
   --shadow-inner: inset 0 2px 4px rgba(0,0,0,0.06);
 }
 
+[data-theme='light'] .status-chip-warning {
+  color: #9a6b00;
+  border-color: #f2b134;
+  background: rgba(242, 177, 52, 0.12);
+}
+
+[data-theme='light'] .status-chip-warning::before {
+  background: #f2b134;
+}
+
 [data-theme='light'] .photo-frame {
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
@@ -586,6 +596,19 @@ a:hover { text-shadow: 0 0 8px var(--cyan-glow); }
   gap: 12px; margin-bottom: 24px;
 }
 .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 0; }
+
+/* Tabs horizontal scroll untuk banyak tab */
+.tabs-scroll {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  padding-bottom: 4px;
+}
+.tabs-scroll .tab-btn { flex-shrink: 0; }
+.tabs-scroll::-webkit-scrollbar { height: 4px; }
+.tabs-scroll::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
 .logout-btn { flex-shrink: 0; }
 .tab-btn {
   background: var(--panel); border: 1px solid var(--line); color: var(--muted);
@@ -1211,6 +1234,8 @@ input::placeholder, textarea::placeholder { color: #5c5c60; }
   /* Tabs: horizontal scroll untuk hindari wrapping berlebih */
   .tabs-row { flex-direction: column; align-items: stretch; gap: 10px; margin-bottom: 16px; }
   .tabs { width: 100%; gap: 6px; }
+  .tabs-scroll { flex-wrap: nowrap; overflow-x: auto; }
+  .tabs-scroll .tab-btn { min-height: 44px; flex: 0 0 auto; white-space: nowrap; }
   .logout-btn { width: 100%; }
 
   .panel { padding: 14px; margin-bottom: 14px; backdrop-filter: blur(8px); }

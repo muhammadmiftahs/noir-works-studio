@@ -781,18 +781,17 @@ export default function MetadataGenerator() {
 
       <NicheStats kind="metadata" label="Metadata Generator" />
 
-      <div className="footnote">
-        <b>Cara pakai:</b> upload foto → klik <em>Generate</em> per foto atau <em>Generate semua</em> (jalan 3 sekaligus + progress bar) → pilih salah satu dari 3 opsi title yang muncul (atau edit manual) → cek keyword &amp; kategori → <em>Ekspor CSV</em> → di Contributor Portal Adobe Stock, buka tab <b>New</b> pada Uploaded Files, pilih <b>Upload CSV</b>. Nama file di kolom <code>Filename</code> harus sama persis dengan file yang sudah kamu upload ke Adobe Stock.
-        <br />
-        <br />
-        Semua analisis gambar dikirim ke server aplikasi ini lalu diteruskan ke Anthropic — API key tidak pernah ada di
-        browser. Gambar asli (base64) TIDAK disimpan ke database; yang disimpan lewat &quot;Simpan hasil ke DB&quot;
-        hanya teks metadata (filename, title, keyword, kategori) supaya tetap ringan dan gratis di tier Neon.
-        <br />
-        <br />
-        Jangan lupa menandai konten sebagai <b>AI-generated</b> saat mengunggah ke Adobe Stock, sesuai kebijakan Adobe
-        Stock untuk konten hasil AI.
-      </div>
+      <details className="reference-box" style={{ marginTop: 24 }}>
+        <summary>ℹ️ Panduan &amp; Informasi Metadata (Klik untuk Membuka)</summary>
+        <div className="reference-body footnote" style={{ margin: 0, padding: 14 }}>
+          <b>Cara pakai:</b> upload foto → klik <em>Generate</em> per foto atau <em>Generate semua</em> (jalan 3 sekaligus + progress bar) → pilih salah satu dari 3 opsi title yang muncul (atau edit manual) → cek keyword &amp; kategori → <em>Ekspor CSV</em> → di Contributor Portal Adobe Stock, buka tab <b>New</b> pada Uploaded Files, pilih <b>Upload CSV</b>.
+          <br />
+          <br />
+          Gambar asli (base64) TIDAK disimpan ke database; yang disimpan lewat &quot;Simpan hasil ke DB&quot;
+          hanya teks metadata (filename, title, keyword, kategori) supaya tetap ringan dan gratis di tier Neon.
+          Jangan lupa menandai konten sebagai <b>AI-generated</b> saat mengunggah ke Adobe Stock.
+        </div>
+      </details>
 
       <div className={'modal-overlay' + (previewOpen ? ' open' : '')}>
         <div className="modal-panel">

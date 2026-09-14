@@ -81,10 +81,26 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard">
-      <div className="dashboard-header">
+      <div className="app-header">
         <div>
-          <h2 className="dashboard-title">Dashboard Overview</h2>
-          <p className="dashboard-subtitle">Ringkasan aktivitas generate & riset Anda</p>
+          <div className="eyebrow">CASE FILE · MISSION CONTROL</div>
+          <h1 className="title">
+            NO<span className="accent">Ï</span>R WORKS
+          </h1>
+          <div className="title-rule"></div>
+          <p className="desc">
+            Dashboard Overview — pantau ringkasan performa generate prompt, video, metadata, serta estimasi aktivitas riset pasar Anda.
+          </p>
+        </div>
+        <div className="header-stats">
+          <div className="stat-box">
+            <div className="stat-value">{totalGenerated}</div>
+            <div className="stat-label">total dibuat</div>
+          </div>
+          <div className="stat-box">
+            <div className="stat-value">{totalResearch}</div>
+            <div className="stat-label">total riset</div>
+          </div>
         </div>
       </div>
 

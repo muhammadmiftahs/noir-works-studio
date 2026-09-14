@@ -982,23 +982,23 @@ export default function PromptGenerator() {
 
       <NicheStats kind="prompt" label="Prompt Generator" />
 
-      <div className="footnote">
-        Riset dan prompt diproses lewat server aplikasi ini (bukan langsung dari browser ke Anthropic), jadi API key
-        tidak pernah terlihat di sisi klien. Hasil ditampilkan di tab ini dan hilang saat direfresh, kecuali kamu
-        menyimpannya ke database (Neon Postgres) lewat tombol &quot;Simpan ke DB&quot; atau opsi simpan otomatis.
-        Rating potensi &amp; kompetisi adalah estimasi AI, bukan data resmi Adobe Stock — tetap cek tren manual
-        sebelum produksi besar.
-        <br />
-        <br />
-        <b>Soal anti-duplikasi:</b> kalau opsi &quot;Hindari konsep yang mirip dengan riwayat&quot; aktif, sebelum
-        generate aplikasi akan mengambil sampai {MAX_AVOID_TITLES} judul konsep yang <em>sudah pernah tersimpan ke
-        database untuk niche yang sama persis</em>, lalu memberi tahu AI supaya tidak mengulang ide yang sama. Ini
-        hanya berfungsi untuk konsep yang benar-benar sudah kamu simpan (lewat &quot;Simpan ke DB&quot; atau simpan
-        otomatis) — hasil yang belum disimpan tidak ikut dicek. Pencocokan niche bersifat persis (case-insensitive),
-        jadi kalau kamu tulis niche custom dengan kata-kata berbeda tiap kali, deteksinya tidak akan nyambung. Ini
-        juga bukan pengecekan mirip 100% dijamin — AI diberi instruksi untuk menghindari, tapi tetap bisa meleset
-        sesekali.
-      </div>
+      <details className="reference-box" style={{ marginTop: 24 }}>
+        <summary>ℹ️ Panduan &amp; Informasi Teknis (Klik untuk Membuka)</summary>
+        <div className="reference-body footnote" style={{ margin: 0, padding: 14 }}>
+          Riset dan prompt diproses lewat server aplikasi ini (bukan langsung dari browser ke Anthropic), jadi API key
+          tidak pernah terlihat di sisi klien. Hasil ditampilkan di tab ini dan hilang saat direfresh, kecuali kamu
+          menyimpannya ke database (Neon Postgres) lewat tombol &quot;Simpan ke DB&quot; atau opsi simpan otomatis.
+          Rating potensi &amp; kompetisi adalah estimasi AI, bukan data resmi Adobe Stock — tetap cek tren manual
+          sebelum produksi besar.
+          <br />
+          <br />
+          <b>Soal anti-duplikasi:</b> kalau opsi &quot;Hindari konsep yang mirip dengan riwayat&quot; aktif, sebelum
+          generate aplikasi akan mengambil sampai {MAX_AVOID_TITLES} judul konsep yang <em>sudah pernah tersimpan ke
+          database untuk niche yang sama persis</em>, lalu memberi tahu AI supaya tidak mengulang ide yang sama. Ini
+          hanya berfungsi untuk konsep yang benar-benar sudah kamu simpan (lewat &quot;Simpan ke DB&quot; atau simpan
+          otomatis) — hasil yang belum disimpan tidak ikut dicek.
+        </div>
+      </details>
     </div>
   );
 }

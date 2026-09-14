@@ -1033,23 +1033,23 @@ export default function VideoPromptGenerator() {
 
       <NicheStats kind={HISTORY_KIND} label="Video Prompt Generator" />
 
-      <div className="footnote">
-        Riset dan prompt diproses lewat server aplikasi ini, API key tidak pernah terlihat di sisi klien. Hasil
-        hilang saat direfresh kecuali disimpan ke database.
-        <br />
-        <br />
-        <b>Catatan soal Google Flow/Veo:</b> sekali proses generate biasanya menghasilkan klip pendek (sekitar 5-8
-        detik) — durasi &amp; rasio aspek akhir tetap harus kamu set manual di pengaturan Google Flow, teks di sini
-        cuma panduan pacing. Prompt sengaja diarahkan tanpa dialog/audio/teks di layar karena footage Adobe Stock
-        umumnya dijual tanpa audio. Untuk klip lebih panjang, pakai fitur "Extend" bawaan Google Flow setelah klip
-        pertama jadi, atau generate beberapa konsep terpisah untuk disambung sendiri.
-        <br />
-        <br />
-        <b>Soal anti-duplikasi:</b> sama seperti Prompt Generator gambar, sebelum generate aplikasi mengambil sampai{' '}
-        {MAX_AVOID_TITLES} judul konsep video yang sudah tersimpan untuk niche yang sama persis, lalu meminta AI
-        membuat yang berbeda. Riwayat ini terpisah dari riwayat Prompt Generator gambar. Rating potensi &amp;
-        kompetisi tetap estimasi AI, bukan data resmi Adobe Stock.
-      </div>
+      <details className="reference-box" style={{ marginTop: 24 }}>
+        <summary>ℹ️ Panduan &amp; Informasi Teknis Video (Klik untuk Membuka)</summary>
+        <div className="reference-body footnote" style={{ margin: 0, padding: 14 }}>
+          Riset dan prompt diproses lewat server aplikasi ini, API key tidak pernah terlihat di sisi klien. Hasil
+          hilang saat direfresh kecuali disimpan ke database.
+          <br />
+          <br />
+          <b>Catatan soal Google Flow/Veo:</b> sekali proses generate biasanya menghasilkan klip pendek (sekitar 5-8
+          detik) — durasi &amp; rasio aspek akhir tetap harus kamu set manual di pengaturan Google Flow, teks di sini
+          cuma panduan pacing. Prompt sengaja diarahkan tanpa dialog/audio/teks di layar karena footage Adobe Stock
+          umumnya dijual tanpa audio.
+          <br />
+          <br />
+          <b>Soal anti-duplikasi:</b> riwayat video terpisah dari riwayat Prompt Generator gambar. Rating potensi &amp;
+          kompetisi adalah estimasi AI, bukan data resmi Adobe Stock.
+        </div>
+      </details>
     </div>
   );
 }
