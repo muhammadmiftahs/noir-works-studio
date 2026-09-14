@@ -77,6 +77,57 @@ function buildProhibitBlock(prohibitIds) {
   return prohibited ? `Prohibit: ${prohibited}` : '';
 }
 
+// ============ FITUR 2: Batch Prompt Variant Matrix ============
+// Menggabungkan niche, style, dan lighting menjadi matriks varian silang
+// untuk diproses dalam satu kali panggilan API (hemat token).
+function buildMatrixCombinations(niches, styles, lightings) {
+  const combos = [];
+  for (const n of niches) {
+    for (const s of styles) {
+      for (const l of lightings) {
+        combos.push({ niche: n, style: s, lighting: l });
+      }
+    }
+  }
+  return combos;
+}
+
+async function doMatrixGenerate(model, combos, bgChoice) {
+  const comboLines = combos.map((c, i) => 
+    `${i + 1}. Niche: "${c.niche}", Style: "${c.style}", Lighting: "${c.lighting}"`
+  ).join('\n');
+
+  const systemPrompt =
+    'Kamu adalah konsultan konten microstock Adobe Stock sekaligus penyusun prompt image generation untuk Google Flow. ' +
+    'Kamu akan diberi beberapa kombinasi parameter (niche, gaya visual, pencahayaan). Untuk TIAP kombinasi, buatkan SATU prompt gambar yang sangat detail dan siap pakai. ' +
+    'Ketentuan prompt gambar (field "prompt"): tulis dalam Bahasa Inggris, 4-7 kalimat, jelaskan secara konkret: subjek utama, komposisi & sudut pandang, gaya visual, pencahayaan spesifik, palet warna, latar belakang, serta deskriptor kualitas komersial. ' +
+    'Ketentuan "negative_prompt": daftar singkat elemen yang harus dihindari dalam Bahasa Inggris (dipisah koma). ' +
+    'Field lain: "title" (judul singkat), "niche", "style", "lighting" (salinan dari parameter), "potential" (1-5 kelipatan 0.5), "competition" (frasa singkat Bahasa Indonesia), "orientation" (salah satu: "square 1:1", "portrait 3:4", "landscape 4:3", "widescreen 16:9"). ' +
+    'Balas HANYA dengan JSON array of objects berisi keys: title, niche, style, lighting, potential, competition, orientation, prompt, negative_prompt. Tanpa teks lain, tanpa markdown fence.';
+
+  let bgInstruction;
+  if (bgChoice === 'putih polos') {
+    bgInstruction = 'Semua konsep WAJIB pakai latar belakang putih polos bersih.';
+  } else if (bgChoice === 'ada background/scene') {
+    bgInstruction = 'Semua konsep WAJIB punya latar belakang berupa scene/lingkungan yang relevan dan detail.';
+  } else {
+    bgInstruction = 'Campur bebas antara latar putih polos dan latar scene/lingkungan.';
+  }
+
+  const userPrompt = `Buatkan ${combos.length} prompt gambar berbeda berdasarkan kombinasi parameter berikut:\n\n${comboLines}\n\n${bgInstruction}`;
+  
+  const data = await callClaude({
+    model,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userPrompt }],
+    maxTokens: 4000,
+  });
+  const raw = extractText(data);
+  const ideas = extractJsonBlock(raw);
+  if (!Array.isArray(ideas) || ideas.length === 0) throw new Error('Hasil matriks kosong, coba lagi.');
+  return ideas;
+}
+
 function starsMarkup(value) {
   const rounded = Math.round(value * 2) / 2;
   const full = Math.floor(rounded);
@@ -245,6 +296,13 @@ export default function PromptGenerator() {
 
   // ============ FITUR BARU: Preview Mode ============
   const [previewMode, setPreviewMode] = useState(false);
+
+  // ============ FITUR BARU: Batch Matrix Mode (Fitur 2) ============
+  const [matrixMode, setMatrixMode] = useState(false);
+  const [matrixNiches, setMatrixNiches] = useState([]);
+  const [matrixStyles, setMatrixStyles] = useState([]);
+  const [matrixLightings, setMatrixLightings] = useState([]);
+  const [matrixBusy, setMatrixBusy] = useState(false);
 
   // ============ FITUR BARU: Refine Frame ============
   const [refiningId, setRefiningId] = useState(null);
@@ -418,6 +476,61 @@ export default function PromptGenerator() {
     } catch (err) {
       setError(`Gagal menyimpan ke database: ${err.message}`);
     }
+  }
+
+  // ============ FITUR 2: Jalankan Batch Matrix ============
+  async function runMatrix() {
+    setError('');
+    if (matrixNiches.length === 0 || matrixStyles.length === 0 || matrixLightings.length === 0) {
+      setError('Pilih minimal 1 niche, 1 gaya visual, dan 1 pencahayaan untuk membuat matriks.');
+      return;
+    }
+    const combos = buildMatrixCombinations(matrixNiches, matrixStyles, matrixLightings);
+    if (combos.length > 30) {
+      setError(`Matriks menghasilkan ${combos.length} kombinasi — maksimal 30 agar hemat token. Kurangi pilihan.`);
+      return;
+    }
+    setMatrixBusy(true);
+    setBusy(true);
+    setProgress({ done: 0, total: combos.length });
+    setStatus(`Membuat ${combos.length} varian dari matriks parameter…`);
+    try {
+      // Gunakan model paling hemat secara default untuk matriks (biaya efisien).
+      const matrixModel = 'claude-haiku-4-5-20251001';
+      const ideas = await doMatrixGenerate(matrixModel, combos, bg);
+      const newFrames = ideas.map((idea, i) => ({
+        id: `${Date.now()}-mx-${i}`,
+        niche: String(idea.niche || '').trim(),
+        title: String(idea.title || 'Tanpa judul').trim(),
+        potential: Number(idea.potential) || 3,
+        competition: String(idea.competition || '-').trim(),
+        usage: `Matriks: ${idea.style || ''} / ${idea.lighting || ''}`,
+        orientation: String(idea.orientation || 'auto').trim(),
+        background: bg,
+        prompt: String(idea.prompt || '').trim(),
+        negative: String(idea.negative_prompt || '').trim(),
+        diffNote: '',
+        fromImage: false,
+        fromMatrix: true,
+        model: matrixModel,
+      })).filter((f) => f.prompt);
+      setFrames((prev) => [...prev, ...newFrames]);
+      setPromptTotal((t) => t + newFrames.length);
+      setProgress({ done: combos.length, total: combos.length });
+      setTimeout(() => setProgress(null), 1200);
+      setSessionCost((prev) => prev + estimateCost(matrixModel, 'generate', combos.length));
+      if (autoSave) newFrames.forEach((f) => saveFrame(f));
+    } catch (err) {
+      setError(`Gagal membuat matriks: ${err.message}`);
+    } finally {
+      setMatrixBusy(false);
+      setBusy(false);
+      setStatus('');
+    }
+  }
+
+  function toggleMatrixItem(list, setList, value) {
+    setList(list.includes(value) ? list.filter((x) => x !== value) : [...list, value]);
   }
 
   async function runGenerate(overrides = {}) {
@@ -858,7 +971,85 @@ export default function PromptGenerator() {
               Kejutkan saya (acak)
             </button>
           )}
+
+          {/* ============ FITUR 2: Toggle Batch Matrix Mode ============ */}
+          {genMode === 'text' && (
+            <button
+              className="btn-ghost full"
+              style={{ borderColor: matrixMode ? 'var(--cyan)' : 'var(--line)', color: matrixMode ? 'var(--cyan)' : 'var(--muted)' }}
+              disabled={busy}
+              onClick={() => setMatrixMode((m) => !m)}
+            >
+              🧮 Mode Batch Matrix {matrixMode ? '(aktif)' : '(buat puluhan varian)'}
+            </button>
+          )}
         </div>
+
+        {/* ============ FITUR 2: Panel Batch Matrix ============ */}
+        {matrixMode && genMode === 'text' && (
+          <div className="matrix-panel">
+            <div className="matrix-header">
+              <strong>🧮 Batch Prompt Variant Matrix</strong>
+              <span className="field-hint">Kombinasi silang niche × gaya × pencahayaan. Maks 30 varian, memakai model Haiku (hemat).</span>
+            </div>
+
+            <div className="field" style={{ marginTop: 14 }}>
+              <label>Niche (pilih banyak)</label>
+              <div className="chip-row">
+                {NICHE_OPTIONS.map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    className={'chip' + (matrixNiches.includes(o.value) ? ' active' : '')}
+                    onClick={() => toggleMatrixItem(matrixNiches, setMatrixNiches, o.value)}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="field">
+              <label>Gaya Visual (pilih banyak)</label>
+              <div className="chip-row">
+                {STYLE_OPTIONS.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className={'chip' + (matrixStyles.includes(s) ? ' active' : '')}
+                    onClick={() => toggleMatrixItem(matrixStyles, setMatrixStyles, s)}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="field">
+              <label>Pencahayaan (pilih banyak)</label>
+              <div className="chip-row">
+                {LIGHTING_PRESETS.filter((p) => p.prompt).map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className={'chip' + (matrixLightings.includes(p.prompt) ? ' active' : '')}
+                    onClick={() => toggleMatrixItem(matrixLightings, setMatrixLightings, p.prompt)}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="matrix-summary">
+              Total kombinasi: <strong>{matrixNiches.length} × {matrixStyles.length} × {matrixLightings.length} = {matrixNiches.length * matrixStyles.length * matrixLightings.length} varian</strong>
+            </div>
+
+            <button className="btn-primary full" style={{ marginTop: 12 }} disabled={busy || matrixBusy} onClick={runMatrix}>
+              {matrixBusy ? 'Membuat matriks…' : '🚀 Generate Semua Varian Matriks'}
+            </button>
+          </div>
+        )}
       </div>
 
       {error && <div className="error-box">{error}</div>}
@@ -918,6 +1109,7 @@ export default function PromptGenerator() {
                 <div className="frame-title-row">
                   {i + 1}. {f.title} {titleStars(f.potential)}
                   {f.fromImage && <span className="type-pill">Dari gambar</span>}
+                  {f.fromMatrix && <span className="type-pill">Matriks</span>}
                 </div>
                 <div className="meta-line">
                   <span className="meta-label">Potensi:</span> {starsMarkup(f.potential)}

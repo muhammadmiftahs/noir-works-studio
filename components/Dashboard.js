@@ -5,6 +5,7 @@ import { getCounts } from '../lib/savedItems';
 import CostChart from './CostChart';
 import NicheChart from './NicheChart';
 import ActivityTimeline from './ActivityTimeline';
+import RoiTracker from './RoiTracker';
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -133,6 +134,8 @@ export default function Dashboard() {
           <ActivityTimeline />
         </div>
       </div>
+
+      <RoiTracker />
     </div>
   );
 }

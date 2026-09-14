@@ -9,6 +9,7 @@ import { callClaude, extractText, withRateLimitRetry } from '../lib/claudeClient
 import { saveItem } from '../lib/savedItems';
 import { readAsDataURL, resizeImageToBase64 } from '../lib/imageUtils';
 import { estimateCost, formatUsd } from '../lib/costTracker';
+import { computeAcceptanceScore } from '../lib/roiTracker';
 
 const CATEGORIES = [
   [1, 'Animals'], [2, 'Buildings and Architecture'], [3, 'Business'], [4, 'Drinks'],
@@ -125,7 +126,7 @@ ${referenceBlock}${diversifyBlock}
 ${searchToolLine}
 
 After any research, return ONLY a raw JSON object as your final message, no markdown fences, no commentary, in this exact shape:
-{"category": number, "content_type": string, "visual_trademark_risk": string, "title_options": string[3], "keywords": string[]}
+{"category": number, "content_type": string, "visual_trademark_risk": string, "title_options": string[3], "keywords": string[], "acceptance": {"copy_space": string, "quality": string, "commercial_value": string}}
 
 Rules:
 - content_type: first, silently classify this image into ONE of these types, and put your answer here as a plain string: "icon_vector" (flat icon, vector graphic, logo-style, line art), "pattern_background" (seamless pattern, texture, plain background/backdrop), "illustration_art" (digital painting, character art, concept art, 3d render scene), or "photo_realistic" (a realistic photograph, or an AI-generated image made to look photographic). This choice changes how you should approach the keywords rule below — read it carefully before writing keywords.
@@ -160,6 +161,10 @@ Rules:
 - category: pick the single best-fit number from this Adobe Stock category list. Always include this field, even if the fit is imperfect — pick the closest one:
 ${CATEGORIES.map(([n, name]) => `${n}=${name}`).join(', ')}
 ${extraInstruction ? `\nTARGETED FIX FOR THIS RUN — apply this on top of everything above, keeping the rest of your analysis approach unchanged:\n${extraInstruction}\n` : ''}
+- acceptance: REAL ACCEPTANCE PRE-CHECK — simulate how an Adobe Stock reviewer + a buyer would judge this image. Fill the "acceptance" object with brief string values ("tinggi"/"sedang"/"rendah" for scales):
+  - copy_space: how much clean empty space is available for text overlay/ads. Use "banyak" (lots), "sedang" (medium), "sedikit" (little), or "penuh" (full/almost none).
+  - quality: overall technical/visual quality for a commercial stock asset. Use "tinggi", "sedang", or "rendah". Flag AI artifacts (odd hands, warped edges, unnatural textures) as lower.
+  - commercial_value: how likely a buyer would license this for commercial use (not just how pretty it is). Use "tinggi", "sedang", or "rendah".
 - IMPORTANT: put "category" as the FIRST key in the JSON object (before title_options and keywords), so it never gets cut off if your response runs long.`;
 }
 
@@ -252,6 +257,7 @@ export default function MetadataGenerator() {
           textSimilarIds: [],
           contentType: '',
           visualRisk: '',
+          acceptance: null,
           title: '',
           titleOptions: [],
           keywords: '',
@@ -351,6 +357,14 @@ export default function MetadataGenerator() {
       );
       const parsed = extractJsonObject(lastText);
       const opts = Array.isArray(parsed.title_options) ? parsed.title_options.map((t) => String(t).slice(0, 70)) : [];
+      // ============ FITUR 1: Adobe Stock Acceptance Predictor ============
+      const acceptanceAnalysis = {
+        visual_trademark_risk: parsed.visual_trademark_risk,
+        copy_space: parsed.acceptance?.copy_space,
+        quality: parsed.acceptance?.quality,
+        commercial_value: parsed.acceptance?.commercial_value,
+      };
+      const acceptanceResult = computeAcceptanceScore(acceptanceAnalysis);
       const patch = {
         titleOptions: opts,
         title: (opts[0] || parsed.title || '').toString().slice(0, 70),
@@ -358,6 +372,7 @@ export default function MetadataGenerator() {
         category: resolveCategory(parsed.category),
         contentType: ['icon_vector', 'pattern_background', 'illustration_art', 'photo_realistic'].includes(parsed.content_type) ? parsed.content_type : '',
         visualRisk: typeof parsed.visual_trademark_risk === 'string' ? parsed.visual_trademark_risk.trim().slice(0, 240) : '',
+        acceptance: acceptanceResult,
         status: 'done',
       };
       updateFrame(id, patch);
@@ -681,6 +696,30 @@ export default function MetadataGenerator() {
                   </span>
                 </div>
                 <div className="photo-body">
+                  {/* ============ FITUR 1: Acceptance Predictor Score ============ */}
+                  {f.acceptance && (
+                    <div className="acceptance-score" style={{ 
+                      background: f.acceptance.color + '15', 
+                      border: `1px solid ${f.acceptance.color}`,
+                      borderRadius: 6,
+                      padding: '10px 12px',
+                      marginBottom: 10,
+                      fontSize: 12
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <span style={{ fontWeight: 600, color: f.acceptance.color }}>
+                          {f.acceptance.score >= 80 ? '✓' : f.acceptance.score >= 60 ? '⚠' : '✗'} Acceptance Score: {f.acceptance.score}/100 — {f.acceptance.level}
+                        </span>
+                      </div>
+                      {f.acceptance.issues.length > 0 && (
+                        <ul style={{ margin: '6px 0 0 16px', padding: 0, color: 'var(--muted)' }}>
+                          {f.acceptance.issues.map((issue, i) => (
+                            <li key={i} style={{ marginBottom: 4 }}>{issue}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                   {f.visualRisk && (
                     <div className="inline-warn">
                       <b>⚠ Risiko visual:</b> {f.visualRisk} — AI mendeteksi ini dari gambar itu sendiri, cek/crop/edit dulu sebelum upload kalau perlu.

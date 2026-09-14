@@ -16,6 +16,7 @@ import {
   PROHIBIT_OPTIONS_VIDEO,
   MOTION_INTENSITY_LEVELS,
 } from '../lib/promptPresets';
+import { buildVeoInspector, veoInspectorToText } from '../lib/veoInspector';
 
 // Riwayat video disimpan dengan "kind" berbeda dari Prompt Generator gambar
 // (kind: "prompt"), supaya daftar anti-duplikat tidak saling campur — konsep
@@ -278,6 +279,10 @@ export default function VideoPromptGenerator() {
   // ============ FITUR BARU: Preview Mode & Refine ============
   const [previewMode, setPreviewMode] = useState(false);
   const [refiningId, setRefiningId] = useState(null);
+
+  // ============ FITUR 3: Veo Parameter Inspector ============
+  const [veoInspectorOpen, setVeoInspectorOpen] = useState(false);
+  const [veoCopied, setVeoCopied] = useState(false);
 
   const [frames, setFrames] = useState([]);
   const [research, setResearch] = useState('');
@@ -792,6 +797,58 @@ export default function VideoPromptGenerator() {
           <div className="field-hint">
             {MOTION_INTENSITY_LEVELS.find((m) => m.level === motionLevel)?.label}
           </div>
+        </div>
+
+        {/* ============ FITUR 3: Live Veo Parameter Inspector ============ */}
+        <div className="field">
+          <div className="preset-bar-header">
+            <label className="field-label" style={{ margin: 0 }}>🎛️ Veo / Google Flow Parameter Inspector</label>
+            <button type="button" className="link-btn" onClick={() => setVeoInspectorOpen((v) => !v)}>
+              {veoInspectorOpen ? 'Sembunyikan' : 'Lihat rekomendasi parameter'}
+            </button>
+          </div>
+          {veoInspectorOpen && (() => {
+            const veo = buildVeoInspector({ aspectRatio, contentType, cameraMovement, motionLevel });
+            return (
+              <div className="veo-inspector">
+                <div className="veo-grid">
+                  <div className="veo-cell">
+                    <span className="veo-key">Rasio</span>
+                    <span className="veo-val">{veo.aspect.ratio} · {veo.aspect.resolution}</span>
+                  </div>
+                  <div className="veo-cell">
+                    <span className="veo-key">Durasi</span>
+                    <span className="veo-val">~{veo.duration} detik</span>
+                  </div>
+                  <div className="veo-cell">
+                    <span className="veo-key">Motion Scale</span>
+                    <span className="veo-val">{veo.motionScale} ({veo.motionLevel}/5)</span>
+                  </div>
+                  <div className="veo-cell">
+                    <span className="veo-key">Stylization</span>
+                    <span className="veo-val">{veo.stylization}</span>
+                  </div>
+                </div>
+                <div className="veo-note"><b>Kamera:</b> {veo.cameraFlag}</div>
+                <div className="veo-note"><b>Seed:</b> {veo.seed}</div>
+                <div className="veo-note"><b>CFG:</b> {veo.cfgNote}</div>
+                <div className="veo-note"><b>Negative Lock:</b> {veo.negativeHard}</div>
+                <button
+                  type="button"
+                  className={'copy-btn-inline' + (veoCopied ? ' copied' : '')}
+                  style={{ marginTop: 10 }}
+                  onClick={() => {
+                    navigator.clipboard.writeText(veoInspectorToText(veo)).then(() => {
+                      setVeoCopied(true);
+                      setTimeout(() => setVeoCopied(false), 1400);
+                    });
+                  }}
+                >
+                  {veoCopied ? '✓ Disalin' : 'Salin Parameter Veo'}
+                </button>
+              </div>
+            );
+          })()}
         </div>
 
         {/* ============ FITUR 1: Prompt Engineering Presets (Video) ============ */}
