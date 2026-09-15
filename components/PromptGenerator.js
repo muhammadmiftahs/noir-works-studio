@@ -15,6 +15,12 @@ import {
   FILM_PRESETS,
   PROHIBIT_OPTIONS_IMAGE,
 } from '../lib/promptPresets';
+import {
+  calculatePromptScore,
+  getStoredDna,
+  saveDna,
+  removeDna,
+} from '../lib/promptDna';
 
 // Kind terpisah untuk catatan riset tren (beda dari kind "prompt"), supaya
 // bisa dihitung total-nya dari database tanpa campur dengan hasil prompt.
@@ -294,6 +300,11 @@ export default function PromptGenerator() {
   const [presetModalOpen, setPresetModalOpen] = useState(false);
   const [presetName, setPresetName] = useState('');
 
+  // ============ FITUR: Prompt DNA + Auto-Scorer ============
+  const [dnaList, setDnaList] = useState([]);
+  const [dnaSavedIds, setDnaSavedIds] = useState(new Set());
+  const [showDnaPanel, setShowDnaPanel] = useState(false);
+
   // ============ FITUR BARU: Preview Mode ============
   const [previewMode, setPreviewMode] = useState(false);
 
@@ -331,10 +342,20 @@ export default function PromptGenerator() {
     // Load user presets saat komponen mount
     const presets = listUserPresets('image');
     setUserPresets(presets);
+    // Load DNA list
+    setDnaList(getStoredDna());
     return () => {
       cancelled = true;
     };
   }, []);
+
+  // ... existing handlers ...
+
+  function handleSaveAsDna(frame) {
+    const updated = saveDna(frame);
+    setDnaList(updated);
+    setDnaSavedIds((prev) => new Set(prev).add(frame.id));
+  }
 
   function handleNicheSelect(value) {
     if (value === '__custom__') {
@@ -1091,41 +1112,105 @@ export default function PromptGenerator() {
         </div>
       </div>
 
-      {frames.length === 0 ? (
-        <div className="empty-state">
-          <strong>Belum ada berkas di case file ini.</strong>
-          <br />
-          {genMode === 'image'
-            ? 'Upload gambar referensi di atas, isi kategori/gaya/latar, lalu tekan "Buat konsep dari gambar". Tiap hasil akan menampilkan konsep baru yang terinspirasi gambar itu, lengkap dengan catatan elemen yang sengaja dibuat berbeda.'
-            : 'Isi kategori, gaya, dan latar belakang di atas, lalu tekan "Riset & buatkan prompt". Tiap hasil akan menampilkan judul konsep, estimasi potensi jual, tingkat kompetisi, kegunaan, dan satu box prompt+negative prompt yang tinggal disalin ke Google Flow.'}
-        </div>
-      ) : (
-        <div className="frames">
-          {frames.map((f, i) => {
-            const combined = `${f.prompt} Negative prompt: ${f.negative}`;
-            const isSaved = savedIds.has(f.id);
-            return (
-              <div className="frame" key={f.id}>
-                <div className="frame-title-row">
-                  {i + 1}. {f.title} {titleStars(f.potential)}
-                  {f.fromImage && <span className="type-pill">Dari gambar</span>}
-                  {f.fromMatrix && <span className="type-pill">Matriks</span>}
+          {frames.length === 0 ? (
+            <div className="empty-state">
+              <strong>Belum ada berkas di case file ini.</strong>
+              <br />
+              {genMode === 'image'
+                ? 'Upload gambar referensi di atas, isi kategori/gaya/latar, lalu tekan "Buat konsep dari gambar". Tiap hasil akan menampilkan konsep baru yang terinspirasi gambar itu, lengkap dengan catatan elemen yang sengaja dibuat berbeda.'
+                : 'Isi kategori, gaya, dan latar belakang di atas, lalu tekan "Riset & buatkan prompt". Tiap hasil akan menampilkan judul konsep, estimasi potensi jual, tingkat kompetisi, kegunaan, dan satu box prompt+negative prompt yang tinggal disalin ke Google Flow.'}
+            </div>
+          ) : (
+            <>
+            {/* ============ DNA MANAGEMENT PANEL ============ */}
+            <div style={{ marginBottom: 18 }}>
+              <button
+                className="btn-ghost full"
+                style={{
+                  borderColor: dnaList.length > 0 ? 'var(--cyan)' : 'var(--line)',
+                  color: dnaList.length > 0 ? 'var(--cyan)' : 'var(--muted)',
+                  marginBottom: showDnaPanel ? 10 : 0,
+                }}
+                onClick={() => setShowDnaPanel((v) => !v)}
+              >
+                🧬 Prompt DNA Library {dnaList.length > 0 ? `(${dnaList.length} templates tersimpan)` : '(kosong)'} {showDnaPanel ? '▴' : '▾'}
+              </button>
+              {showDnaPanel && (
+                <div className="dna-panel">
+                  <div className="dna-panel-header">
+                    <strong>Prompt DNA Library</strong>
+                    <span className="field-hint">Template prompt yang sudah terbukti laku / menjadi standar sukses Anda. Simpan dengan tombol "🧬 Simpan DNA" pada hasil prompt.</span>
+                  </div>
+                  {dnaList.length === 0 ? (
+                    <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
+                      Belum ada DNA tersimpan. Setelah generate prompt, klik tombol 🧬 "Simpan DNA" untuk menjadikannya template standar.
+                    </div>
+                  ) : (
+                    <div className="dna-grid">
+                      {dnaList.map((dna) => (
+                        <div key={dna.id} className="dna-card">
+                          <div className="dna-card-header">
+                            <span className="dna-niche-badge">{dna.niche}</span>
+                            <button
+                              className="dna-del-btn"
+                              onClick={() => {
+                                const updated = removeDna(dna.id);
+                                setDnaList(updated);
+                              }}
+                              title="Hapus DNA ini"
+                            >
+                              ×
+                            </button>
+                          </div>
+                          <div className="dna-card-title">{dna.title}</div>
+                          <div className="dna-card-prompt">{dna.prompt?.slice(0, 150)}...</div>
+                          <div className="dna-keywords">
+                            {dna.keywords?.slice(0, 6).map((kw, i) => (
+                              <span key={i} className="dna-keyword-tag">{kw}</span>
+                            ))}
+                            {(dna.keywords?.length || 0) > 6 && <span className="dna-keyword-more">+{dna.keywords.length - 6}</span>}
+                          </div>
+                          <div className="dna-card-meta">
+                            {new Date(dna.createdAt).toLocaleDateString('id-ID')}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="meta-line">
-                  <span className="meta-label">Potensi:</span> {starsMarkup(f.potential)}
-                </div>
-                <div className="meta-line">
-                  <span className="meta-label">Kompetisi:</span> {f.competition}
-                </div>
-                <div className="meta-line">
-                  <span className="meta-label">Kegunaan:</span> {f.usage}
-                </div>
-                <div className="meta-line">
-                  <span className="meta-label">Format:</span>{' '}
-                  <span className="meta-value-muted">
-                    {f.orientation} · latar: {f.background}
-                  </span>
-                </div>
+              )}
+            </div>
+            <div className="frames">
+              {frames.map((f, i) => {
+                const combined = `${f.prompt} Negative prompt: ${f.negative}`;
+                const isSaved = savedIds.has(f.id);
+                const dnaScore = calculatePromptScore(f.prompt, f.negative, dnaList);
+                const isSavedDna = dnaSavedIds.has(f.id);
+                return (
+                  <div className="frame" key={f.id}>
+                    <div className="frame-title-row">
+                      {i + 1}. {f.title} {titleStars(f.potential)}
+                      {f.fromImage && <span className="type-pill">Dari gambar</span>}
+                      {f.fromMatrix && <span className="type-pill">Matriks</span>}
+                      <span className="dna-grade-badge" style={{ backgroundColor: dnaScore.badgeColor + '22', color: dnaScore.badgeColor, border: `1px solid ${dnaScore.badgeColor}` }}>
+                        {dnaScore.grade} · {dnaScore.score}%
+                      </span>
+                    </div>
+                    <div className="meta-line">
+                      <span className="meta-label">Potensi:</span> {starsMarkup(f.potential)}
+                    </div>
+                    <div className="meta-line">
+                      <span className="meta-label">Kompetisi:</span> {f.competition}
+                    </div>
+                    <div className="meta-line">
+                      <span className="meta-label">Kegunaan:</span> {f.usage}
+                    </div>
+                    <div className="meta-line">
+                      <span className="meta-label">Format:</span>{' '}
+                      <span className="meta-value-muted">
+                        {f.orientation} · latar: {f.background}
+                      </span>
+                    </div>
                 {f.diffNote && (
                   <div className="meta-line">
                     <span className="meta-label">Perbedaan dari sumber:</span>{' '}
@@ -1138,26 +1223,35 @@ export default function PromptGenerator() {
                     {copiedId === f.id ? '✓ Disalin' : 'Salin'}
                   </button>
                 </div>
-                <div className="prompt-copy-box">
-                  <span className="prompt-copy-text">{combined}</span>
+                  <div className="prompt-copy-box">
+                    <span className="prompt-copy-text">{combined}</span>
+                  </div>
+                  <div className="frame-actions">
+                    <button
+                      className="refine-btn"
+                      onClick={() => refineFrame(f.id)}
+                      disabled={refiningId === f.id}
+                      title="Buat prompt ini lebih detail dan dramatis"
+                    >
+                      {refiningId === f.id ? 'Menyempurnakan…' : '✨ Sempurnakan (Refine)'}
+                    </button>
+                    <button
+                      className={'dna-btn' + (isSavedDna ? ' saved' : '')}
+                      onClick={() => handleSaveAsDna(f)}
+                      disabled={isSavedDna}
+                      title="Jadikan template DNA standar sukses"
+                    >
+                      {isSavedDna ? '✓ Tersimpan DNA' : '🧬 Simpan DNA'}
+                    </button>
+                    <button className={'save-btn' + (isSaved ? ' saved' : '')} onClick={() => saveFrame(f)} disabled={isSaved}>
+                      {isSaved ? 'Tersimpan di DB' : 'Simpan ke DB'}
+                    </button>
+                    <button onClick={() => removeFrame(f.id)}>Hapus</button>
+                  </div>
                 </div>
-                <div className="frame-actions">
-                  <button
-                    className="refine-btn"
-                    onClick={() => refineFrame(f.id)}
-                    disabled={refiningId === f.id}
-                    title="Buat prompt ini lebih detail dan dramatis"
-                  >
-                    {refiningId === f.id ? 'Menyempurnakan…' : '✨ Sempurnakan (Refine)'}
-                  </button>
-                  <button className={'save-btn' + (isSaved ? ' saved' : '')} onClick={() => saveFrame(f)} disabled={isSaved}>
-                    {isSaved ? 'Tersimpan di DB' : 'Simpan ke DB'}
-                  </button>
-                  <button onClick={() => removeFrame(f.id)}>Hapus</button>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
 

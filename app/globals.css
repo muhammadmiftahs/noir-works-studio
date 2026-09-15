@@ -961,7 +961,91 @@ input::placeholder, textarea::placeholder { color: #5c5c60; }
   line-height: 1.5;
 }
 
-.chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+/* ============ FITUR DNA ============ */
+.dna-panel {
+  margin-top: 10px;
+  padding: 16px;
+  background: var(--panel-raised);
+  border: 1px solid var(--cyan);
+  border-radius: var(--radius);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.dna-panel-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 12px;
+}
+
+.dna-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.dna-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 12px;
+  border-radius: var(--radius);
+  position: relative;
+}
+
+.dna-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.dna-niche-badge {
+  background: var(--cyan);
+  color: var(--ink);
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  text-transform: uppercase;
+}
+
+.dna-del-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.dna-del-btn:hover { color: var(--red); }
+
+.dna-card-title { font-weight: 600; font-size: 13px; color: var(--white); margin-bottom: 4px; }
+.dna-card-prompt { font-size: 11px; color: var(--muted); line-height: 1.4; margin-bottom: 8px; }
+.dna-keywords { display: flex; flex-wrap: wrap; gap: 4px; }
+.dna-keyword-tag { background: var(--line); padding: 2px 5px; border-radius: 3px; font-size: 10px; color: var(--white); }
+
+.dna-grade-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 600;
+  margin-left: 8px;
+}
+
+.dna-btn {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  padding: 0 10px;
+  border-radius: var(--radius);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.dna-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+.dna-btn.saved { color: #7fcf9e; border-color: #7fcf9e; }
+
 .chip {
   border: 1px solid var(--line); background: var(--panel-raised); color: var(--muted);
   padding: 8px 13px; border-radius: var(--radius); font-size: 12px; font-family: 'IBM Plex Mono', monospace;
