@@ -4,9 +4,11 @@ import { useState, useRef } from 'react';
 import ModelSelect from './ModelSelect';
 import { DEFAULT_MODEL_ID } from '../lib/models';
 import { callClaude, extractText, extractJsonBlock } from '../lib/claudeClient';
-import { saveItem } from '../lib/savedItems';
+import { saveItem, listItems } from '../lib/savedItems';
 import { readAsDataURL, resizeImageToBase64 } from '../lib/imageUtils';
 import { estimateCost, formatUsd } from '../lib/costTracker';
+
+const HISTORY_KIND = 'image-prompt';
 
 const MAX_FILENAME_LEN = 60;
 
@@ -36,9 +38,11 @@ export default function ImageToPrompt() {
   const [targetLang, setTargetLang] = useState('en'); // 'en' | 'id'
   const [detailLevel, setDetailLevel] = useState('detail'); // 'ringkas' | 'detail' | 'sangat-detail'
   const [withNegative, setWithNegative] = useState(true);
-  const [autoSave, setAutoSave] = useState(false);
+  const [autoSave, setAutoSave] = useState(true);    // default ON — simpan ke DB
+  const [avoidDuplicates, setAvoidDuplicates] = useState(true);  // default ON — hindari prompt sama
 
-  const [result, setResult] = useState(null); // { prompt, negative, notes, model }
+  const [result, setResult] = useState(null);
+  const [duplicateWarning, setDuplicateWarning] = useState('');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
@@ -109,6 +113,7 @@ export default function ImageToPrompt() {
 
   async function generatePrompt() {
     setError('');
+    setDuplicateWarning('');
     if (!image) {
       setError('Upload gambar dulu sebelum generate.');
       return;
@@ -116,6 +121,14 @@ export default function ImageToPrompt() {
     setBusy(true);
     setStatus('Menganalisis gambar & menyusun prompt…');
     try {
+      // --- Muat riwayat sekali untuk deteksi duplikasi ---
+      let historyItems = [];
+      try {
+        historyItems = await listItems(HISTORY_KIND);
+      } catch (e) { /* DB belum diset, lanjut saja */ }
+      const savedFilenames = new Set(historyItems.map((it) => (it.title || '').toLowerCase().trim()));
+      const savedPrompts  = new Set(historyItems.map((it) => (it.data?.prompt || '').toLowerCase().trim()));
+
       const data = await callClaude({
         model,
         system: buildSystemPrompt(),
@@ -141,15 +154,30 @@ export default function ImageToPrompt() {
         filename: image.filename,
       };
       if (!newResult.prompt) throw new Error('Model tidak mengembalikan prompt. Coba lagi.');
+
+      // --- Deteksi duplikasi ---
+      const warnings = [];
+      const normFilename  = newResult.filename.toLowerCase().trim();
+      const normPromptText = newResult.prompt.toLowerCase().trim();
+      if (avoidDuplicates && savedFilenames.has(normFilename)) {
+        warnings.push(`Gambar "${newResult.filename}" sudah pernah diproses sebelumnya — hasil mungkin mirip.`);
+      }
+      const isDuplicatePrompt = avoidDuplicates && savedPrompts.has(normPromptText);
+      if (isDuplicatePrompt) {
+        warnings.push('Prompt persis sama sudah ada di database — disimpan tetap tapi ditandai sebagai duplikat.');
+      }
+      setDuplicateWarning(warnings.join(' '));
+
       setResult(newResult);
       setSessionCost((prev) => prev + estimateCost(model, 'generateFromImage', 1));
 
+      // --- Simpan otomatis ke DB ---
       if (autoSave) {
         saveItem({
-          kind: 'image-prompt',
+          kind: HISTORY_KIND,
           title: newResult.filename || 'Dari gambar',
           model,
-          data: newResult,
+          data: { ...newResult, isDuplicate: isDuplicatePrompt },
         })
           .then(() => setSavedIds((prev) => new Set(prev).add(newResult.id)))
           .catch(() => {});
@@ -188,6 +216,7 @@ export default function ImageToPrompt() {
   function resetAll() {
     setImage(null);
     setResult(null);
+    setDuplicateWarning('');
     setError('');
     setCopied(false);
   }
@@ -232,7 +261,11 @@ export default function ImageToPrompt() {
         <ModelSelect value={model} onChange={setModel} />
         <label className="checkbox-row" style={{ marginTop: 12 }}>
           <input type="checkbox" checked={autoSave} onChange={(e) => setAutoSave(e.target.checked)} />
-          <span>Simpan otomatis hasil ke database (Neon) — opsional</span>
+          <span>Simpan otomatis hasil ke database (Neon)</span>
+        </label>
+        <label className="checkbox-row" style={{ marginTop: 10 }}>
+          <input type="checkbox" checked={avoidDuplicates} onChange={(e) => setAvoidDuplicates(e.target.checked)} />
+          <span>Hindari simpan prompt yang persis sama dengan riwayat database</span>
         </label>
       </div>
 
@@ -348,6 +381,9 @@ export default function ImageToPrompt() {
         <div className="status-row">
           <span className="spinner"></span> {status}
         </div>
+      )}
+      {duplicateWarning && (
+        <div className="warn-box">{duplicateWarning}</div>
       )}
 
       {/* Hasil */}
