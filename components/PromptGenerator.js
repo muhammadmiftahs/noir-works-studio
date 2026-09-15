@@ -1252,7 +1252,7 @@ export default function PromptGenerator() {
               );
             })}
           </div>
-        </div>
+        </>
       )}
 
       <HistoryPanel
