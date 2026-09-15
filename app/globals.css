@@ -1252,13 +1252,41 @@ input::placeholder, textarea::placeholder { color: #5c5c60; }
 .copy-btn-inline.copied { background: #7fcf9e; }
 
 .frame-actions { display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
-.frame-actions button {
+.frame-actions button:not(.refine-btn):not(.dna-btn):not(.save-btn) {
   background: none; border: none; color: var(--muted); font-size: 11px; letter-spacing: 0.04em;
   text-transform: uppercase; cursor: pointer; padding: 0; font-family: 'IBM Plex Mono', monospace;
 }
-.frame-actions button:hover { color: var(--red); }
+.frame-actions button:not(.refine-btn):not(.dna-btn):not(.save-btn):hover { color: var(--red); }
 .frame-actions button.save-btn:hover { color: var(--cyan); }
 .frame-actions button.saved { color: #7fcf9e; }
+.frame-actions .dna-btn {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-family: 'IBM Plex Mono', monospace;
+  border-radius: var(--radius);
+  transition: all 0.25s ease;
+  flex-shrink: 0;
+}
+.frame-actions .dna-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+  box-shadow: 0 0 8px var(--gold-glow);
+}
+.frame-actions .dna-btn.saved {
+  color: #7fcf9e;
+  border-color: #7fcf9e;
+}
+.frame-actions .dna-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 
 .footnote { margin-top: 34px; color: #5c5c60; font-size: 11px; line-height: 1.8; }
 .footnote code { background: var(--panel-raised); padding: 1px 5px; border-radius: 2px; color: var(--cyan); }
